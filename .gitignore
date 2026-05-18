@@ -71,3 +71,5 @@ playwright-report/
 # Cursor / local AI overrides
 
 .cursor/settings.json
+frontend/.env
+backend/.env
