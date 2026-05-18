@@ -1,50 +1,30 @@
 # agentic-rag-sub-agents
 
-A hands-on project for building a production-style RAG application with AI coding tools (Cursor, Claude Code, etc.). You learn RAG concepts and codebase structure while implementing features module by module—not by memorizing Python or React syntax.
+Production-oriented RAG application with a chat interface and a document ingestion pipeline. Users upload files manually, query their knowledge base with streaming answers, and rely on hybrid retrieval, tool use, and sub-agents for complex questions.
 
-**Status:** Planning only. No application code yet. See [PRD.md](./PRD.md) for the full product spec.
+**Status:** In planning — application code not started yet.
 
-## What we're building
+## Overview
 
-Two main interfaces:
+Full-stack agentic RAG system: threaded chat with retrieval-augmented generation, plus an ingestion UI for upload, processing status, and document management. Auth and row-level security ensure each user only accesses their own data. Configuration is environment-based (no admin panel).
 
-1. **Chat** (default) — Threaded conversations with retrieval-augmented, streaming responses
-2. **Ingestion** — Manual file upload (drag-and-drop), processing status, document management
+## Features
 
-Not included: automated connectors, scheduled ingestion, or an admin UI. Configuration is via environment variables.
+- **Chat** — Multi-turn threads, streaming responses (SSE), conversation memory
+- **Ingestion** — Drag-and-drop upload, processing tracking, document lifecycle management
+- **Retrieval** — Vector search (pgvector), hybrid keyword + vector search, reranking
+- **Documents** — PDF, DOCX, HTML, Markdown; chunking, embeddings, deduplication via content hashing
+- **Metadata** — LLM-based structured extraction and metadata-filtered retrieval
+- **Tools** — Text-to-SQL for structured data; web search when documents are insufficient
+- **Agents** — Sub-agents with isolated context for full-document and delegated tasks
+- **Platform** — Supabase auth with RLS, realtime ingestion status, LangSmith observability
 
-## Stack (planned)
+## Tech stack
 
 | Layer | Technology |
 |-------|------------|
 | Frontend | React, TypeScript, Vite, Tailwind, shadcn/ui |
 | Backend | Python, FastAPI |
 | Database | Supabase (Postgres, pgvector, Auth, Storage, Realtime) |
-| LLM | OpenAI Responses API (Module 1), then OpenAI-compatible Chat Completions (Module 2+) |
+| LLM | OpenAI-compatible Chat Completions API |
 | Observability | LangSmith |
-
-## Learning path (modules)
-
-| Module | Focus |
-|--------|--------|
-| 1 | App shell, auth, chat UI, OpenAI Responses API, LangSmith |
-| 2 | BYO retrieval, ingestion, embeddings, pgvector, chat memory |
-| 3 | Record manager (deduplication, incremental updates) |
-| 4 | Metadata extraction and filtered retrieval |
-| 5 | Multi-format docs (PDF, DOCX, HTML, Markdown) |
-| 6 | Hybrid search and reranking |
-| 7 | Text-to-SQL and web search fallback |
-| 8 | Sub-agents with isolated context |
-
-## Capabilities (when complete)
-
-- Document ingestion, vector + hybrid search, reranking
-- Multi-format documents, metadata extraction, record management
-- Text-to-SQL and web search tools
-- Sub-agents, threaded chat, streaming (SSE), auth with RLS
-
-## Getting started
-
-Implementation has not started. When Module 1 lands, setup instructions (env vars, Supabase, local dev) will go here.
-
-For scope, constraints, and architectural decisions (e.g. Module 1 → Module 2 transition), read **[PRD.md](./PRD.md)**.
