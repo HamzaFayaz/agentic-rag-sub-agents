@@ -69,5 +69,5 @@ test-results/
 playwright-report/
 
 # Cursor / local AI overrides
-.cursor/
-.claude/settings.local.json
+
+.cursor/settings.json
