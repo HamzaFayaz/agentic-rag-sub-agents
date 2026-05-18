@@ -19,8 +19,15 @@ description: Onboard  cursor  into the codebase
 
 ## Output
 
+
+
 Provide a brief summary:
+
 - What this project does
 - Tech stack
 - How it's organised
 - Current branch and recent activity
+
+Breif summary Insturction:
+
+- Shorten it if possible , but do not cut the important details
