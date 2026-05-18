@@ -1,32 +1,70 @@
 # agentic-rag-sub-agents
 
-Production-oriented RAG application with a chat interface and a document ingestion pipeline. Users upload files manually, query their knowledge base with streaming answers, and rely on hybrid retrieval, tool use, and sub-agents for complex questions.
+Production-oriented RAG application with chat and document ingestion. **Module 1** (current): auth, threaded chat, Supabase-backed history, streaming Chat Completions, LangSmith tracing. No RAG yet.
 
-**Status:** In planning — application code not started yet.
+## Prerequisites (you)
 
-**Module 1 scope:** Auth, chat UI, Supabase-stored conversation history, and streaming Chat Completions (no RAG). Retrieval and ingestion begin in Module 2.
+1. [Supabase](https://supabase.com) project with **Email** auth enabled
+2. [OpenAI](https://platform.openai.com) API key (`gpt-4o-mini` recommended)
+3. Optional: [LangSmith](https://smith.langchain.com) for tracing
 
-## Overview
+## Quick start
 
-Full-stack agentic RAG system: threaded chat with retrieval-augmented generation, plus an ingestion UI for upload, processing status, and document management. Auth and row-level security ensure each user only accesses their own data. Configuration is environment-based (no admin panel).
+### 1. Database migration
 
-## Features
+Run `supabase/migrations/001_threads_messages.sql` in the Supabase **SQL Editor**. Confirm `threads` and `messages` tables exist with RLS enabled.
 
-- **Chat** — Multi-turn threads, streaming responses (SSE), conversation memory
-- **Ingestion** — Drag-and-drop upload, processing tracking, document lifecycle management
-- **Retrieval** — Vector search (pgvector), hybrid keyword + vector search, reranking
-- **Documents** — PDF, DOCX, HTML, Markdown; chunking, embeddings, deduplication via content hashing
-- **Metadata** — LLM-based structured extraction and metadata-filtered retrieval
-- **Tools** — Text-to-SQL for structured data; web search when documents are insufficient
-- **Agents** — Sub-agents with isolated context for full-document and delegated tasks
-- **Platform** — Supabase auth with RLS, realtime ingestion status, LangSmith observability
+### 2. Environment
 
-## Tech stack
+```bash
+cp .env.example backend/.env
+cp .env.example frontend/.env
+```
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React, TypeScript, Vite, Tailwind, shadcn/ui |
-| Backend | Python, FastAPI |
-| Database | Supabase (Postgres, pgvector, Auth, Storage, Realtime) |
-| LLM | OpenAI-compatible Chat Completions API |
-| Observability | LangSmith |
+Fill in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`, and matching `VITE_*` values.
+
+### 3. Backend
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # macOS/Linux
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Health check: `curl http://localhost:8000/health`
+
+### 4. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 — sign up, create a chat, send a message.
+
+## Project layout
+
+```
+backend/app/          FastAPI (chat stream, JWT auth)
+frontend/src/         React chat UI
+supabase/migrations/  Postgres schema + RLS
+.agent/plans/         Build plans
+```
+
+## RLS smoke test
+
+1. Create User A and User B (separate sign-ups)
+2. User A creates a thread and note its UUID
+3. As User B, confirm the thread is not visible in the UI
+4. Optional: `curl /api/chat/stream` with User B's JWT and User A's `thread_id` → expect **403**
+
+## Docs
+
+- `PRD.md` — full product scope
+- `cursor.md` — agent conventions
+- `PROGRESS.md` — module checklist
+- `.agent/plans/1.app-shell.md` — Module 1 task cards
