@@ -63,5 +63,9 @@ async def chat_stream(
     return EventSourceResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

@@ -61,7 +61,8 @@ Desktop.ini
 uploads/
 tmp/
 temp/
-
+frontend/node_modules
+backend/venv
 # Test / tooling artifacts
 coverage/
 .testsprite/

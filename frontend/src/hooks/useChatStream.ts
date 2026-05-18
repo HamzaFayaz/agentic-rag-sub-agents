@@ -11,6 +11,43 @@ type StreamOptions = {
   onError: (message: string) => void;
 };
 
+function parseSseChunk(
+  chunk: string,
+  handlers: Pick<StreamOptions, "onToken" | "onDone" | "onError">,
+): void {
+  const lines = chunk.split("\n");
+  let event = "message";
+  let data = "";
+
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith("data:")) {
+      data += line.slice(5).trimStart();
+    }
+  }
+
+  if (!data) return;
+
+  const payload = JSON.parse(data) as {
+    content?: string;
+    detail?: string;
+    status?: string;
+  };
+
+  if (event === "token" && payload.content) {
+    handlers.onToken(payload.content);
+  } else if (event === "error") {
+    handlers.onError(
+      typeof payload.detail === "string"
+        ? payload.detail
+        : JSON.stringify(payload.detail ?? "Stream error"),
+    );
+  } else if (event === "done") {
+    handlers.onDone();
+  }
+}
+
 export function useChatStream() {
   const [streaming, setStreaming] = useState(false);
 
@@ -19,25 +56,42 @@ export function useChatStream() {
       options;
     setStreaming(true);
 
+    let finished = false;
+    const finishOnce = () => {
+      if (finished) return;
+      finished = true;
+      onDone();
+    };
+
+    const handlers = {
+      onToken,
+      onDone: finishOnce,
+      onError: (message: string) => {
+        finished = true;
+        onError(message);
+      },
+    };
+
     try {
       const response = await fetch(`${apiBaseUrl()}/api/chat/stream`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
+          Accept: "text/event-stream",
         },
         body: JSON.stringify({ thread_id: threadId, content }),
       });
 
       if (!response.ok) {
         const text = await response.text();
-        onError(text || `Request failed (${response.status})`);
+        handlers.onError(text || `Request failed (${response.status})`);
         return;
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        onError("No response body");
+        handlers.onError("No response body");
         return;
       }
 
@@ -53,35 +107,16 @@ export function useChatStream() {
         buffer = parts.pop() ?? "";
 
         for (const part of parts) {
-          const lines = part.split("\n");
-          let event = "message";
-          let data = "";
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              event = line.slice(6).trim();
-            } else if (line.startsWith("data:")) {
-              data += line.slice(5).trim();
-            }
-          }
-          if (!data) continue;
-
-          const payload = JSON.parse(data) as {
-            content?: string;
-            detail?: string;
-          };
-
-          if (event === "token" && payload.content) {
-            onToken(payload.content);
-          } else if (event === "error") {
-            onError(payload.detail ?? "Stream error");
-          } else if (event === "done") {
-            onDone();
-          }
+          if (part.trim()) parseSseChunk(part, handlers);
         }
       }
-      onDone();
+
+      buffer += decoder.decode();
+      if (buffer.trim()) parseSseChunk(buffer, handlers);
+
+      finishOnce();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Stream failed");
+      handlers.onError(err instanceof Error ? err.message : "Stream failed");
     } finally {
       setStreaming(false);
     }

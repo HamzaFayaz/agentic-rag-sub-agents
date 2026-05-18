@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatLayout } from "@/components/chat/ChatLayout";
@@ -47,7 +48,7 @@ export function ChatPage() {
       content,
       onToken: (token) => {
         assistantText += token;
-        updateLastAssistant(assistantText);
+        flushSync(() => updateLastAssistant(assistantText));
       },
       onDone: async () => {
         await loadMessages();
