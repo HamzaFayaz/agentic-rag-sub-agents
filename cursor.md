@@ -6,7 +6,7 @@ RAG app with chat (default) and document ingestion interfaces. Config via env va
 - Frontend: React + Vite + Tailwind + shadcn/ui
 - Backend: Python + FastAPI
 - Database: Supabase (Postgres, pgvector, Auth, Storage, Realtime)
-- LLM: OpenAI (Module 1), OpenRouter (Module 2+)
+- LLM: OpenAI-compatible Chat Completions API (all modules; OpenAI, OpenRouter, Ollama, etc.)
 - Observability: LangSmith
 
 ## Rules
@@ -16,7 +16,8 @@ RAG app with chat (default) and document ingestion interfaces. Config via env va
 - All tables need Row-Level Security - users only see their own data
 - Stream chat responses via SSE
 - Use Supabase Realtime for ingestion status updates
-- Module 2+ uses stateless completions - store and send chat history yourself
+- Module 1+: stateless Chat Completions — store threads/messages in Supabase, load history and send each request (no OpenAI-managed threads or file_search)
+- Module 1 is chat-only (no RAG); RAG starts in Module 2
 - Ingestion is manual file upload only - no connectors or automated pipelines
 
 ## Planning

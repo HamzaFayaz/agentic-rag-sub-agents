@@ -53,8 +53,8 @@ Technically-minded people who want to build production RAG systems using AI codi
 | Frontend | React + TypeScript + Vite + Tailwind + shadcn/ui |
 | Backend | Python + FastAPI |
 | Database | Supabase (Postgres + pgvector + Auth + Storage + Realtime) |
-| LLM (Module 1) | OpenAI Responses API (managed threads + file_search) |
-| LLM (Module 2+) | Any OpenAI-compatible endpoint (OpenRouter, Ollama, LM Studio, etc.) |
+| LLM (all modules) | OpenAI-compatible Chat Completions API (OpenAI, OpenRouter, Ollama, LM Studio, etc.) |
+| Chat memory | Supabase (threads + messages); stateless API — load history and send each request |
 | Observability | LangSmith |
 
 ## Constraints
@@ -68,40 +68,30 @@ Technically-minded people who want to build production RAG systems using AI codi
 
 ## Module 1: The App Shell + Observability
 
-**Build:** Auth, chat UI, OpenAI Responses API (manages threads + file_search), LangSmith tracing
+**Build:** Auth, threaded chat UI, Supabase-backed conversation history, stateless Chat Completions API (streaming via SSE), LangSmith tracing
 
-**Learn:** What RAG is, why managed RAG exists, its limitations (OpenAI handles memory and retrieval - black box)
+**Out of scope for Module 1:** RAG, document upload/ingestion, OpenAI managed `file_search`, Responses API, pgvector retrieval
 
-**Note:** The Responses API is OpenAI-specific. It provides managed threads and built-in file search, but locks you into OpenAI. Module 2 transitions to the standard Chat Completions API for provider flexibility.
+**Chat flow (you own memory, not OpenAI):**
+1. User sends a message in a thread
+2. Backend loads prior messages for that thread from Supabase
+3. Backend calls Chat Completions with `system` + history + new user message
+4. Assistant reply is streamed to the UI and saved to Supabase
+5. Next turn repeats with the updated history
 
----
+**Learn:** Full-stack app shell, Supabase auth + RLS, stateless LLM APIs, storing and resending chat history, SSE streaming, observability from day one
 
-## Architectural Decision: Module 1 → Module 2 Transition
-
-At the end of Module 1, you have a working chat app using OpenAI's **Responses API**—a managed solution where OpenAI handles threads, memory, and file search. In Module 2, you switch to the standard **Chat Completions API** to support any OpenAI-compatible provider (OpenRouter, Ollama, LM Studio, etc.).
-
-**The decision you need to make:** What do you do with the Responses API code? Here are two common approaches, but you're not limited to these—come up with your own if it makes sense for your use case.
-
-| Option | Approach | Pros | Cons |
-|--------|----------|------|------|
-| **A: Replace** | Remove Responses API code entirely, rebuild on Chat Completions | Clean codebase, single pattern, easier to maintain | Lose the ability to use OpenAI's managed RAG |
-| **B: Dual Support** | Keep Responses API alongside Chat Completions, configurable per request | Flexibility to use either approach, compare them side-by-side | More complex codebase, two patterns to understand |
-
-There is no right answer—this is a real architectural choice you'll face in building production systems.
-
-**In the video, I chose Option A**—completely removing the Responses API code from the codebase and any related schema from the database. This keeps things simple and focused on the OpenAI-compatible Chat Completions pattern going forward.
-
-**This is a lesson in steering Claude Code**: you need to clearly communicate your decision and guide the AI to implement it correctly. Be explicit about what you want removed, refactored, or kept.
+**Note:** Module 1 is LLM chat only. The same Chat Completions + Supabase history pattern continues in Module 2 when RAG is added on top.
 
 ---
 
-## Module 2: BYO Retrieval + Memory
+## Module 2: BYO Retrieval + RAG
 
-**Prerequisites:** Complete the architectural decision above.
+**Prerequisites:** Module 1 complete (auth, chat UI, threads/messages in Supabase, streaming Chat Completions).
 
-**Build:** Ingestion UI, file storage, chunking → embedding → pgvector, retrieval tool, Chat Completions API integration (OpenRouter/Ollama/LM Studio), chat history storage (stateless API - you manage memory now), realtime ingestion status
+**Build:** Ingestion UI, file storage, chunking → embedding → pgvector, retrieval tool wired into the existing chat flow, realtime ingestion status
 
-**Learn:** Chunking, embeddings, vector search, tool calling, relevance thresholds, managing conversation history, **steering AI agents through architectural refactoring**
+**Learn:** Chunking, embeddings, vector search, tool calling, relevance thresholds, injecting retrieved context into Chat Completions requests
 
 ---
 

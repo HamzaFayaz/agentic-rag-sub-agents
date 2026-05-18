@@ -4,6 +4,8 @@ Production-oriented RAG application with a chat interface and a document ingesti
 
 **Status:** In planning — application code not started yet.
 
+**Module 1 scope:** Auth, chat UI, Supabase-stored conversation history, and streaming Chat Completions (no RAG). Retrieval and ingestion begin in Module 2.
+
 ## Overview
 
 Full-stack agentic RAG system: threaded chat with retrieval-augmented generation, plus an ingestion UI for upload, processing status, and document management. Auth and row-level security ensure each user only accesses their own data. Configuration is environment-based (no admin panel).
