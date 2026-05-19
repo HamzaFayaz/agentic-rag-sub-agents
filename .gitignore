@@ -74,3 +74,5 @@ playwright-report/
 .cursor/settings.json
 frontend/.env
 backend/.env
+
+Understanding/
