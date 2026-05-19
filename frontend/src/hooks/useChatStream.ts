@@ -11,29 +11,40 @@ type StreamOptions = {
   onError: (message: string) => void;
 };
 
-function parseSseChunk(
-  chunk: string,
+function normalizeSseBuffer(raw: string): string {
+  return raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function parseSseBlock(
+  block: string,
   handlers: Pick<StreamOptions, "onToken" | "onDone" | "onError">,
 ): void {
-  const lines = chunk.split("\n");
+  const trimmed = block.trim();
+  if (!trimmed || trimmed.startsWith(":")) return;
+
+  const lines = trimmed.split("\n");
   let event = "message";
-  let data = "";
+  const dataLines: string[] = [];
 
   for (const line of lines) {
     if (line.startsWith("event:")) {
       event = line.slice(6).trim();
     } else if (line.startsWith("data:")) {
-      data += line.slice(5).trimStart();
+      dataLines.push(line.slice(5).replace(/^\s/, ""));
     }
   }
 
-  if (!data) return;
+  if (dataLines.length === 0) return;
 
-  const payload = JSON.parse(data) as {
-    content?: string;
-    detail?: string;
-    status?: string;
-  };
+  const data = dataLines.join("\n");
+  let payload: { content?: string; detail?: string | unknown; status?: string };
+
+  try {
+    payload = JSON.parse(data) as typeof payload;
+  } catch {
+    handlers.onError(`Invalid stream data: ${data.slice(0, 80)}`);
+    return;
+  }
 
   if (event === "token" && payload.content) {
     handlers.onToken(payload.content);
@@ -46,6 +57,21 @@ function parseSseChunk(
   } else if (event === "done") {
     handlers.onDone();
   }
+}
+
+function consumeSseBuffer(
+  buffer: string,
+  handlers: Pick<StreamOptions, "onToken" | "onDone" | "onError">,
+): string {
+  const normalized = normalizeSseBuffer(buffer);
+  const blocks = normalized.split("\n\n");
+  const remainder = blocks.pop() ?? "";
+
+  for (const block of blocks) {
+    parseSseBlock(block, handlers);
+  }
+
+  return remainder;
 }
 
 export function useChatStream() {
@@ -103,16 +129,14 @@ export function useChatStream() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-
-        for (const part of parts) {
-          if (part.trim()) parseSseChunk(part, handlers);
-        }
+        buffer = consumeSseBuffer(buffer, handlers);
       }
 
       buffer += decoder.decode();
-      if (buffer.trim()) parseSseChunk(buffer, handlers);
+      buffer = consumeSseBuffer(buffer, handlers);
+      if (buffer.trim()) {
+        parseSseBlock(buffer, handlers);
+      }
 
       finishOnce();
     } catch (err) {
