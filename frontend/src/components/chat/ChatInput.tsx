@@ -1,20 +1,23 @@
+import { Square } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type ChatInputProps = {
-  disabled?: boolean;
+  streaming?: boolean;
   onSend: (content: string) => void;
+  onStop?: () => void;
 };
 
-export function ChatInput({ disabled, onSend }: ChatInputProps) {
+export function ChatInput({ streaming, onSend, onStop }: ChatInputProps) {
   const [value, setValue] = useState("");
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (streaming) return;
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed) return;
     onSend(trimmed);
     setValue("");
   }
@@ -28,12 +31,24 @@ export function ChatInput({ disabled, onSend }: ChatInputProps) {
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Type a message…"
-          disabled={disabled}
+          placeholder={streaming ? "Generating response…" : "Type a message…"}
+          disabled={streaming}
         />
-        <Button type="submit" disabled={disabled || !value.trim()}>
-          Send
-        </Button>
+        {streaming ? (
+          <Button
+            type="button"
+            className="bg-red-600 text-white hover:bg-red-700"
+            onClick={() => onStop?.()}
+            aria-label="Stop generating"
+          >
+            <Square className="size-4 fill-current" />
+            Stop
+          </Button>
+        ) : (
+          <Button type="submit" disabled={!value.trim()}>
+            Send
+          </Button>
+        )}
       </div>
     </form>
   );

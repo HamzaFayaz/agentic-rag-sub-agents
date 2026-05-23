@@ -3,10 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.deps import get_current_user_id
-from app.routes import chat
+from app.routes import chat, documents
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(chat.router)
+api_router.include_router(documents.router)
 
 
 def create_app() -> FastAPI:
