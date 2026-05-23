@@ -9,12 +9,12 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 ## Modules
 
-### Module 1: App Shell + Observability (LLM chat only — no RAG)
+### Module 1: App Shell + Observability (LLM chat only — no RAG) — **complete**
 
-- [ ] Supabase project: Auth + `threads` / `messages` tables with RLS *(run migration in dashboard — code in `supabase/migrations/`)*
+- [x] Supabase project: Auth + `threads` / `messages` tables with RLS *(migration applied in dashboard — `supabase/migrations/`)*
 - [x] FastAPI backend: load history → Chat Completions → stream reply → save messages
 - [x] React chat UI: thread list, message view, SSE streaming
-- [ ] LangSmith tracing on chat requests *(set `LANGSMITH_TRACING=true` + API key)*
+- [x] LangSmith tracing on chat requests *(tracing enabled and verified)*
 - [x] `.env.example` with required keys documented
 
 **Not in Module 1:** ingestion UI, embeddings, pgvector, retrieval tools, OpenAI Responses API / `file_search`
