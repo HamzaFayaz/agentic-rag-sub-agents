@@ -22,7 +22,7 @@ export function ChatPage() {
     updateLastAssistant,
     loadMessages,
   } = useMessages(activeThreadId);
-  const { streaming, streamMessage } = useChatStream();
+  const { streaming, streamMessage, stopStreaming } = useChatStream();
 
   useEffect(() => {
     if (!activeThreadId && threads.length > 0) {
@@ -77,8 +77,16 @@ export function ChatPage() {
         </div>
       ) : (
         <>
-          <MessageList messages={messages} loading={messagesLoading} />
-          <ChatInput disabled={streaming} onSend={(text) => void handleSend(text)} />
+          <MessageList
+            messages={messages}
+            loading={messagesLoading}
+            streaming={streaming}
+          />
+          <ChatInput
+            streaming={streaming}
+            onSend={(text) => void handleSend(text)}
+            onStop={stopStreaming}
+          />
         </>
       )}
     </ChatLayout>

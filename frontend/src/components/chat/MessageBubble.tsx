@@ -1,12 +1,16 @@
+import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 import { cn } from "@/lib/utils";
 
 type MessageBubbleProps = {
   role: "user" | "assistant" | "system";
   content: string;
+  isThinking?: boolean;
 };
 
-export function MessageBubble({ role, content }: MessageBubbleProps) {
+export function MessageBubble({ role, content, isThinking }: MessageBubbleProps) {
   const isUser = role === "user";
+  const showThinking = !isUser && isThinking && !content;
+
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
@@ -17,7 +21,7 @@ export function MessageBubble({ role, content }: MessageBubbleProps) {
             : "bg-white border border-slate-200 text-slate-900",
         )}
       >
-        {content}
+        {showThinking ? <ThinkingIndicator /> : content}
       </div>
     </div>
   );

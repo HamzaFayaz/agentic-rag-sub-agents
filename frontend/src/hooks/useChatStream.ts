@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { apiBaseUrl } from "@/lib/api";
 
@@ -76,10 +76,20 @@ function consumeSseBuffer(
 
 export function useChatStream() {
   const [streaming, setStreaming] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const stopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
 
   const streamMessage = useCallback(async (options: StreamOptions) => {
     const { accessToken, threadId, content, onToken, onDone, onError } =
       options;
+
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setStreaming(true);
 
     let finished = false;
@@ -107,6 +117,7 @@ export function useChatStream() {
           Accept: "text/event-stream",
         },
         body: JSON.stringify({ thread_id: threadId, content }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -140,11 +151,18 @@ export function useChatStream() {
 
       finishOnce();
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        finishOnce();
+        return;
+      }
       handlers.onError(err instanceof Error ? err.message : "Stream failed");
     } finally {
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
       setStreaming(false);
     }
   }, []);
 
-  return { streaming, streamMessage };
+  return { streaming, streamMessage, stopStreaming };
 }
