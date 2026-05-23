@@ -1,11 +1,13 @@
 import { useCallback, useRef, useState } from "react";
 
 import { apiBaseUrl } from "@/lib/api";
+import type { SourceCitation } from "@/components/chat/SourceCitations";
 
 type StreamOptions = {
   accessToken: string;
   threadId: string;
   content: string;
+  onSources?: (sources: SourceCitation[]) => void;
   onToken: (token: string) => void;
   onDone: () => void;
   onError: (message: string) => void;
@@ -17,7 +19,7 @@ function normalizeSseBuffer(raw: string): string {
 
 function parseSseBlock(
   block: string,
-  handlers: Pick<StreamOptions, "onToken" | "onDone" | "onError">,
+  handlers: Pick<StreamOptions, "onSources" | "onToken" | "onDone" | "onError">,
 ): void {
   const trimmed = block.trim();
   if (!trimmed || trimmed.startsWith(":")) return;
@@ -37,7 +39,22 @@ function parseSseBlock(
   if (dataLines.length === 0) return;
 
   const data = dataLines.join("\n");
-  let payload: { content?: string; detail?: string | unknown; status?: string };
+
+  if (event === "sources" && handlers.onSources) {
+    try {
+      const sources = JSON.parse(data) as SourceCitation[];
+      handlers.onSources(sources);
+    } catch {
+      handlers.onError(`Invalid sources data: ${data.slice(0, 80)}`);
+    }
+    return;
+  }
+
+  let payload: {
+    content?: string;
+    detail?: string | unknown;
+    status?: string;
+  };
 
   try {
     payload = JSON.parse(data) as typeof payload;
@@ -61,7 +78,7 @@ function parseSseBlock(
 
 function consumeSseBuffer(
   buffer: string,
-  handlers: Pick<StreamOptions, "onToken" | "onDone" | "onError">,
+  handlers: Pick<StreamOptions, "onSources" | "onToken" | "onDone" | "onError">,
 ): string {
   const normalized = normalizeSseBuffer(buffer);
   const blocks = normalized.split("\n\n");
@@ -83,8 +100,15 @@ export function useChatStream() {
   }, []);
 
   const streamMessage = useCallback(async (options: StreamOptions) => {
-    const { accessToken, threadId, content, onToken, onDone, onError } =
-      options;
+    const {
+      accessToken,
+      threadId,
+      content,
+      onSources,
+      onToken,
+      onDone,
+      onError,
+    } = options;
 
     abortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -100,6 +124,7 @@ export function useChatStream() {
     };
 
     const handlers = {
+      onSources,
       onToken,
       onDone: finishOnce,
       onError: (message: string) => {

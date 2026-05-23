@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import type { SourceCitation } from "@/components/chat/SourceCitations";
 import { supabase } from "@/lib/supabase";
 
 export type Message = {
@@ -7,6 +8,9 @@ export type Message = {
   role: "user" | "assistant" | "system";
   content: string;
   created_at: string;
+  metadata?: {
+    sources?: SourceCitation[];
+  };
 };
 
 export function useMessages(threadId: string | null) {
@@ -21,7 +25,7 @@ export function useMessages(threadId: string | null) {
     setLoading(true);
     const { data, error } = await supabase
       .from("messages")
-      .select("id, role, content, created_at")
+      .select("id, role, content, created_at, metadata")
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true });
 
@@ -43,20 +47,28 @@ export function useMessages(threadId: string | null) {
         role,
         content,
         created_at: new Date().toISOString(),
+        metadata: {},
       },
     ]);
   }, []);
 
-  const updateLastAssistant = useCallback((content: string) => {
-    setMessages((prev) => {
-      const next = [...prev];
-      const last = next[next.length - 1];
-      if (last?.role === "assistant") {
-        next[next.length - 1] = { ...last, content };
-      }
-      return next;
-    });
-  }, []);
+  const updateLastAssistant = useCallback(
+    (content: string, sources?: SourceCitation[]) => {
+      setMessages((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === "assistant") {
+          next[next.length - 1] = {
+            ...last,
+            content,
+            metadata: sources ? { sources } : last.metadata,
+          };
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   return {
     messages,

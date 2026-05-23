@@ -19,4 +19,10 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 **Not in Module 1:** ingestion UI, embeddings, pgvector, retrieval tools, OpenAI Responses API / `file_search`
 
-### Module 2: BYO Retrieval + RAG
+### Module 2: BYO Retrieval + RAG — **complete**
+
+- [x] Supabase: pgvector, `documents` / `document_chunks`, storage RLS, `match_document_chunks` RPC, message `metadata`, Realtime on `documents`
+- [x] Private `documents` storage bucket (manual dashboard step)
+- [x] Backend: upload → chunk → embed → index; documents API; RAG in chat with SSE `sources`
+- [x] Frontend: Documents page (upload, list, status, realtime, delete); chat source citations
+- [x] `.env.example` and README updated for Module 2

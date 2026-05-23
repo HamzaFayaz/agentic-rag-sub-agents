@@ -28,6 +28,7 @@ export function MessageList({ messages, loading, streaming }: MessageListProps) 
             key={message.id}
             role={message.role}
             content={message.content}
+            sources={message.metadata?.sources}
             isThinking={message.id === thinkingMessageId}
           />
         ))}
