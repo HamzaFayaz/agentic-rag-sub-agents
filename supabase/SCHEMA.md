@@ -2,6 +2,8 @@
 
 Migrations apply in order: `001_threads_messages.sql` → `002_documents_rag.sql`.
 
+**Related:** Supabase services (Auth, Storage, Realtime, etc.) and who calls them → [`SERVICES.md`](SERVICES.md)
+
 This doc explains **terms**, **every table column**, **how tables relate**, and **how one user gets many chats**.
 
 ---
