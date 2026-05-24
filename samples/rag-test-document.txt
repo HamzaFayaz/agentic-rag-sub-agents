@@ -1,0 +1,40 @@
+Acme Cloud Services — Internal FAQ (Test Document)
+====================================================
+
+This file is for testing document upload and RAG chat in agentic-rag-sub-agents.
+
+Company overview
+----------------
+Acme Cloud Services was founded in 2019 and is headquartered in Austin, Texas.
+Our flagship product is called SkyVault, a document storage and search platform.
+
+Support and contact
+-------------------
+- General support email: support@acme-cloud.example
+- Enterprise sales: enterprise@acme-cloud.example
+- Support hours: Monday–Friday, 9:00 AM to 6:00 PM Central Time (CT)
+
+Refund policy
+-------------
+Customers on the Pro plan may request a full refund within 14 days of purchase.
+After 14 days, refunds are not available, but unused prepaid credits may be
+transferred to another account on request.
+
+Pricing (Pro plan, as of 2026)
+------------------------------
+- Monthly: $49 per user
+- Annual: $470 per user (equivalent to ~$39.17 per month)
+- Maximum file upload size on Pro: 25 MB per file
+
+Security
+--------
+All data at rest is encrypted with AES-256. API access requires OAuth 2.0 or
+a scoped API key. Keys must be rotated at least every 90 days for enterprise
+accounts.
+
+Unique test phrase
+------------------
+If RAG retrieval works, the assistant should be able to quote this exact sentence:
+"The purple telescope launches at midnight on deck seven."
+
+End of test document.

@@ -22,10 +22,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
 
     rag_top_k: int = 5
-    rag_match_threshold: float = 0.7
+    # Cosine similarity floor for match_document_chunks. 0.7 is often too strict
+    # for large chunks + text-embedding-3-small (short queries score ~0.45–0.69).
+    rag_match_threshold: float = 0.5
     max_upload_bytes: int = 10_485_760
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+    chunk_size: int = 600
+    chunk_overlap: int = 120
 
     system_prompt: str = Field(
         default=(
