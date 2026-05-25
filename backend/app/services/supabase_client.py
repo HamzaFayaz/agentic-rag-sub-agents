@@ -2,6 +2,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from supabase import Client, create_client
+from supabase.lib.client_options import SyncClientOptions
 
 from app.config import settings
 
@@ -10,9 +11,14 @@ DOCUMENTS_BUCKET = "documents"
 
 class SupabaseRepository:
     def __init__(self, access_token: str) -> None:
+        # User JWT must be on both PostgREST and Storage; postgrest.auth() alone
+        # leaves Storage on the anon key, which fails storage RLS (403).
         self._client: Client = create_client(
             settings.supabase_url,
             settings.supabase_anon_key,
+            options=SyncClientOptions(
+                headers={"Authorization": f"Bearer {access_token}"},
+            ),
         )
         self._client.postgrest.auth(access_token)
 
