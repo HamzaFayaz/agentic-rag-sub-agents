@@ -1,6 +1,6 @@
 # Stop dev servers (run via stop-dev.bat from CMD).
 $ErrorActionPreference = "Stop"
-$Root = $PSScriptRoot
+$Root = (Get-Item -LiteralPath "$PSScriptRoot\..").FullName
 $Backend = Join-Path $Root "backend"
 $Ports = @(8000, 8001, 8002, 5173)
 
@@ -38,3 +38,4 @@ foreach ($port in $Ports) {
 }
 
 Write-Host "Done. If port 8000 is still stuck, wait 30s or reboot, then run start-dev.bat again." -ForegroundColor Cyan
+
