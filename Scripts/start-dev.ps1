@@ -1,6 +1,6 @@
 # Run via start-dev.bat (not by opening this file in Notepad / CMD as start-dev.ps1).
 $ErrorActionPreference = "Stop"
-$Root = $PSScriptRoot
+$Root = (Get-Item -LiteralPath "$PSScriptRoot\..").FullName
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Uvicorn = Join-Path $Backend "venv\Scripts\uvicorn.exe"
@@ -153,3 +153,4 @@ npm run dev
 
 Write-Host "Done. Backend: http://localhost:$BackendPort  Frontend: http://localhost:$FrontendPort" -ForegroundColor Cyan
 Write-Host "Close those two PowerShell windows to stop the servers." -ForegroundColor Cyan
+
