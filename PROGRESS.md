@@ -33,3 +33,11 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] SSE: `sources` event before `token` stream; citations persist after page refresh
 - [x] RLS: second user cannot list, retrieve, or chat over another user's documents/chunks
 - [x] Delete: document row, chunks, and storage object removed together
+
+### Module 3: Record Manager — **in progress**
+
+- [x] Migration `003_record_manager.sql`: `content_hash`, unique `(user_id, filename)`
+- [x] Backend: SHA-256 hashing, filename lookup, skip unchanged / update in place
+- [x] API: `ingest_action` + `content_hash` on upload response
+- [x] Frontend: upload outcome messages; `useDocuments` handles `unchanged`
+- [ ] E2E validation (re-upload skip, edit re-upload, RLS)
