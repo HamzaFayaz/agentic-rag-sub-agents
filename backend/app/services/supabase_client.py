@@ -71,13 +71,27 @@ class SupabaseRepository:
         result = (
             self._client.table("documents")
             .select(
-                "id, filename, status, byte_size, error_message, created_at, updated_at"
+                "id, filename, status, byte_size, content_hash, error_message, "
+                "created_at, updated_at"
             )
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .execute()
         )
         return result.data or []
+
+    def get_document_by_filename(
+        self, user_id: str, filename: str
+    ) -> dict[str, Any] | None:
+        result = (
+            self._client.table("documents")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("filename", filename)
+            .maybe_single()
+            .execute()
+        )
+        return result.data
 
     def get_document(self, document_id: UUID, user_id: str) -> dict[str, Any] | None:
         result = (
@@ -99,6 +113,7 @@ class SupabaseRepository:
         byte_size: int,
         status: str = "pending",
         document_id: UUID | None = None,
+        content_hash: str | None = None,
     ) -> dict[str, Any]:
         row: dict[str, Any] = {
             "user_id": user_id,
@@ -108,6 +123,8 @@ class SupabaseRepository:
             "byte_size": byte_size,
             "status": status,
         }
+        if content_hash is not None:
+            row["content_hash"] = content_hash
         if document_id is not None:
             row["id"] = str(document_id)
         result = (
@@ -136,14 +153,25 @@ class SupabaseRepository:
             raise RuntimeError("Failed to update document")
         return result.data[0]
 
+    def delete_document_chunks(self, document_id: UUID) -> None:
+        self._client.table("document_chunks").delete().eq(
+            "document_id", str(document_id)
+        ).execute()
+
+    def replace_storage_file(
+        self,
+        storage_path: str,
+        content: bytes,
+        mime_type: str,
+    ) -> None:
+        self.upload_document_file(storage_path, content, mime_type)
+
     def delete_document(self, document_id: UUID, user_id: str) -> None:
         doc = self.get_document(document_id, user_id)
         if not doc:
             return
 
-        self._client.table("document_chunks").delete().eq(
-            "document_id", str(document_id)
-        ).execute()
+        self.delete_document_chunks(document_id)
 
         self._client.table("documents").delete().eq("id", str(document_id)).execute()
 

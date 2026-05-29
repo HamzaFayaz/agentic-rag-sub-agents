@@ -19,10 +19,32 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 **Not in Module 1:** ingestion UI, embeddings, pgvector, retrieval tools, OpenAI Responses API / `file_search`
 
-### Module 2: BYO Retrieval + RAG — **complete**
+### Module 2: BYO Retrieval + RAG — **complete & validated**
 
 - [x] Supabase: pgvector, `documents` / `document_chunks`, storage RLS, `match_document_chunks` RPC, message `metadata`, Realtime on `documents`
 - [x] Private `documents` storage bucket (manual dashboard step)
 - [x] Backend: upload → chunk → embed → index; documents API; RAG in chat with SSE `sources`
 - [x] Frontend: Documents page (upload, list, status, realtime, delete); chat source citations
 - [x] `.env.example` and README updated for Module 2
+
+**Validation** *(plan P5-T5 — passed 2026-05-29)*
+
+- [x] E2E: upload document → status reaches `ready` (Realtime) → chat answer grounded in content with source citations
+- [x] SSE: `sources` event before `token` stream; citations persist after page refresh
+- [x] RLS: second user cannot list, retrieve, or chat over another user's documents/chunks
+- [x] Delete: document row, chunks, and storage object removed together
+
+### Module 3: Record Manager — **in progress** (apply `003_record_manager.sql` in Supabase, then run E2E)
+
+- [x] Migration `003_record_manager.sql`: `content_hash`, unique `(user_id, filename)`
+- [x] Backend: SHA-256 hashing, filename lookup, skip unchanged / update in place
+- [x] API: `ingest_action` + `content_hash` on upload response
+- [x] Frontend: upload outcome messages; `useDocuments` handles `unchanged`
+
+**E2E checklist** *(P5-T1 — run after migration 003)*
+
+- [ ] Upload `samples/rag-test-document.txt` → `ingest_action: created`, status `ready`
+- [ ] Re-upload same file → `unchanged`, no duplicate row
+- [ ] Edit one line, re-upload same name → `updated`, same `id`
+- [ ] Chat still retrieves chunks for that filename
+- [ ] User B: same bytes, different user → independent row (RLS)

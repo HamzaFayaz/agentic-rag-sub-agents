@@ -16,7 +16,7 @@ export function SourceCitations({ sources }: SourceCitationsProps) {
 
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      <span className="text-xs font-medium text-slate-500">Sources:</span>
+      <span className="text-xs font-medium text-muted-foreground">Sources:</span>
       {sources.map((source) => (
         <Badge
           key={`${source.document_id}-${source.filename}`}

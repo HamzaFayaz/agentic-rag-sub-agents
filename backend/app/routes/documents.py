@@ -40,8 +40,11 @@ async def upload_document(
         "filename": doc["filename"],
         "status": doc["status"],
         "byte_size": doc["byte_size"],
+        "content_hash": doc.get("content_hash"),
+        "ingest_action": doc["ingest_action"],
         "error_message": doc.get("error_message"),
         "created_at": doc["created_at"],
+        "updated_at": doc.get("updated_at"),
     }
 
 
