@@ -15,8 +15,6 @@
   --color-ring: var(--ring);
   --color-bubble-user: var(--bubble-user);
   --color-bubble-user-fg: var(--bubble-user-fg);
-  --color-bubble-assistant: var(--bubble-assistant);
-  --color-bubble-assistant-border: var(--bubble-assistant-border);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
 }
@@ -32,10 +30,8 @@
   --accent-foreground: #ffffff;
   --input: #ffffff;
   --ring: #94a3b8;
-  --bubble-user: #0f172a;
-  --bubble-user-fg: #ffffff;
-  --bubble-assistant: #ffffff;
-  --bubble-assistant-border: #e2e8f0;
+  --bubble-user: #f4f4f4;
+  --bubble-user-fg: #0f172a;
   --warning: #fffbeb;
   --warning-foreground: #78350f;
 }
@@ -51,10 +47,8 @@
   --accent-foreground: #212121;
   --input: #303030;
   --ring: #737373;
-  --bubble-user: #3a3a3a;
+  --bubble-user: #323232;
   --bubble-user-fg: #ececec;
-  --bubble-assistant: #303030;
-  --bubble-assistant-border: #424242;
   --warning: #3d3420;
   --warning-foreground: #fde68a;
 }
