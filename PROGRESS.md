@@ -48,3 +48,52 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] Edit one line, re-upload same name → `updated`, same `id`
 - [x] Chat still retrieves chunks for that filename
 - [x] User B: same bytes, different user → independent row (RLS)
+
+---
+
+## Current focus: Modules 4 + 5 + 6 (single delivery)
+
+**Approach:** Build Modules 4, 5, and 6 together as one robust retrieval upgrade — not three separate releases. Shared ingest/retrieve path: better parsing → document metadata → hybrid search + reranking → same small-context chat flow (never pass full docs to the LLM).
+
+| Module | Role in combined build |
+|--------|-------------------------|
+| **4 — Metadata extraction** | LLM structured metadata at ingest; filter/narrow retrieval by document fields |
+| **5 — Multi-format support** | Docling (or equivalent) for PDF/DOCX/HTML/Markdown; cleaner text → better chunks |
+| **6 — Hybrid search & reranking** | Keyword + vector (RRF), then rerank top candidates before prompt injection |
+
+**Target pipeline**
+
+```text
+Upload → parse (M5) → metadata extract (M4) → chunk → embed
+Chat   → optional metadata filters (M4) → hybrid retrieve (M6) → rerank (M6) → top-K → LLM
+```
+
+### Module 4: Metadata Extraction — **in progress** *(with M5 + M6)*
+
+- [ ] Migration: `documents.metadata` (jsonb) + indexes as needed for filters
+- [ ] Backend: Pydantic schema + LLM extraction during ingest (skip on `unchanged`)
+- [ ] Retrieval: apply metadata filters in `match`/search path
+- [ ] Frontend: show document metadata on Documents list/detail (optional filters later)
+
+### Module 5: Multi-Format Support — **in progress** *(with M4 + M6)*
+
+- [ ] Replace/extend parsing with docling for PDF, DOCX, HTML, Markdown
+- [ ] Upload API accepts new types; size/MIME validation updated
+- [ ] Cascade delete unchanged (document, chunks, storage)
+- [ ] `.env.example` / README updated for new formats and dependencies
+
+### Module 6: Hybrid Search & Reranking — **in progress** *(with M4 + M5)*
+
+- [ ] Supabase: full-text / keyword search on `document_chunks` (or parallel RPC)
+- [ ] Backend: hybrid retrieval (vector + keyword, RRF merge)
+- [ ] Backend: reranker step (wider candidate pool → top-N for prompt)
+- [ ] Config: env vars for hybrid weights, rerank model, candidate counts
+- [ ] Validation: exact-term queries + paraphrase queries beat vector-only baseline
+
+**Combined validation (E2E)**
+
+- [ ] Upload mixed formats (txt, md, pdf, docx) → `ready` with metadata populated
+- [ ] Chat: paraphrased question retrieves correct passage (vector + rerank)
+- [ ] Chat: exact token (SKU, section cite, name) retrieves correct passage (hybrid)
+- [ ] Metadata filter narrows to correct document when library has similar topics
+- [ ] Re-upload unchanged file skips re-extract and re-embed (Module 3 + M4)
