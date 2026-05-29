@@ -72,7 +72,7 @@ class SupabaseRepository:
             self._client.table("documents")
             .select(
                 "id, filename, status, byte_size, content_hash, error_message, "
-                "created_at, updated_at"
+                "metadata, created_at, updated_at"
             )
             .eq("user_id", user_id)
             .order("created_at", desc=True)
@@ -188,18 +188,54 @@ class SupabaseRepository:
     ) -> None:
         if not chunks:
             return
-        rows = [
-            {
+
+        def _build_row(item: dict[str, Any]) -> dict[str, Any]:
+            row: dict[str, Any] = {
                 "document_id": str(document_id),
                 "user_id": user_id,
                 "chunk_index": item["chunk_index"],
                 "content": item["content"],
-                "embedding": item["embedding"],
+                "embedding": item.get("embedding"),
                 "token_count": item.get("token_count"),
+                "section_title": item.get("section_title"),
+                "heading_level": item.get("heading_level"),
+                "chunk_level": item.get("chunk_level"),
             }
-            for item in chunks
+            return row
+
+        parents = [c for c in chunks if c.get("chunk_level") == "parent"]
+        children = [c for c in chunks if c.get("parent_index") is not None]
+        standalone = [
+            c
+            for c in chunks
+            if c.get("chunk_level") != "parent" and c.get("parent_index") is None
         ]
-        self._client.table("document_chunks").insert(rows).execute()
+
+        parent_index_to_id: dict[int, str] = {}
+
+        if parents:
+            parent_rows = [_build_row(p) for p in parents]
+            result = (
+                self._client.table("document_chunks")
+                .insert(parent_rows)
+                .execute()
+            )
+            if result.data:
+                for parent_chunk, inserted in zip(parents, result.data):
+                    parent_index_to_id[parent_chunk["chunk_index"]] = inserted["id"]
+
+        if standalone:
+            standalone_rows = [_build_row(s) for s in standalone]
+            self._client.table("document_chunks").insert(standalone_rows).execute()
+
+        if children:
+            child_rows: list[dict[str, Any]] = []
+            for child in children:
+                row = _build_row(child)
+                parent_idx = child["parent_index"]
+                row["parent_id"] = parent_index_to_id.get(parent_idx)
+                child_rows.append(row)
+            self._client.table("document_chunks").insert(child_rows).execute()
 
     def upload_document_file(
         self,
@@ -228,6 +264,30 @@ class SupabaseRepository:
             },
         ).execute()
         return result.data or []
+
+    def match_chunks_keyword(
+        self,
+        query_text: str,
+        match_count: int | None = None,
+    ) -> list[dict[str, Any]]:
+        result = self._client.rpc(
+            "match_chunks_keyword",
+            {
+                "query_text": query_text,
+                "match_count": match_count or settings.hybrid_candidate_k,
+            },
+        ).execute()
+        return result.data or []
+
+    def get_chunk_by_id(self, chunk_id: str) -> dict[str, Any] | None:
+        result = (
+            self._client.table("document_chunks")
+            .select("id, content, section_title, document_id")
+            .eq("id", chunk_id)
+            .maybe_single()
+            .execute()
+        )
+        return result.data
 
     def count_ready_documents(self, user_id: str) -> int:
         result = (
