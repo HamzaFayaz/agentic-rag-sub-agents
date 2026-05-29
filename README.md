@@ -1,12 +1,13 @@
 # agentic-rag-sub-agents
 
-Production-oriented RAG application with chat and document ingestion. **Module 1**: auth, threaded chat, Supabase-backed history, streaming Chat Completions, LangSmith tracing. **Module 2**: document upload, chunking, embeddings (pgvector), retrieval-augmented chat with source citations. **Module 3**: record manager — SHA-256 content hash, skip unchanged re-uploads, update in place when the same filename has new content.
+Production-oriented RAG application with chat and document ingestion. **Module 1**: auth, threaded chat, Supabase-backed history, streaming Chat Completions, LangSmith tracing. **Module 2**: document upload, chunking, embeddings (pgvector), retrieval-augmented chat with source citations. **Module 3**: record manager — SHA-256 content hash, skip unchanged re-uploads, update in place when the same filename has new content. **Modules 4–6**: docling parsing + structure-aware chunking, LLM document metadata, hybrid search (vector + FTS) with Cohere reranking.
 
 ## Prerequisites (you)
 
 1. [Supabase](https://supabase.com) project with **Email** auth enabled
 2. [OpenAI](https://platform.openai.com) API key (`gpt-4o-mini` + `text-embedding-3-small`)
-3. Optional: [LangSmith](https://smith.langchain.com) for tracing
+3. Optional: [Cohere](https://cohere.com) API key for reranking (`COHERE_API_KEY`; hybrid search works without it)
+4. Optional: [LangSmith](https://smith.langchain.com) for tracing
 
 ## Quick start
 
@@ -17,6 +18,9 @@ Run in the Supabase **SQL Editor**, in order:
 1. `supabase/migrations/001_threads_messages.sql`
 2. `supabase/migrations/002_documents_rag.sql`
 3. `supabase/migrations/003_record_manager.sql` — `content_hash` column, unique `(user_id, filename)`
+4. `supabase/migrations/004_metadata.sql` — `documents.metadata` jsonb
+5. `supabase/migrations/005_chunk_structure.sql` — section/parent-child chunk columns, nullable embedding
+6. `supabase/migrations/006_hybrid_search.sql` — full-text search + keyword RPC
 
 Confirm `threads`, `messages`, `documents`, and `document_chunks` exist with RLS enabled.
 
@@ -37,6 +41,12 @@ Module 2 backend vars (defaults in `.env.example`):
 
 - `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`
 - `RAG_TOP_K`, `RAG_MATCH_THRESHOLD`, `MAX_UPLOAD_BYTES`, `CHUNK_SIZE`, `CHUNK_OVERLAP`
+
+Modules 4–6 backend vars:
+
+- `METADATA_EXTRACTION_ENABLED`, `METADATA_MODEL`
+- `MAX_CHUNK_TOKENS`, `MIN_HEADINGS_FOR_SECTION`
+- `COHERE_API_KEY`, `RERANK_MODEL`, `RERANK_ENABLED`, `RERANK_TOP_N`, `HYBRID_CANDIDATE_K`
 
 ### 4. Backend
 
@@ -66,7 +76,7 @@ Open http://localhost:5173 — sign up, upload documents on **Documents**, then 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/documents` | List current user's documents (includes optional `content_hash`) |
-| `POST` | `/api/documents/upload` | Multipart upload (`.txt`, `.md`, `.pdf`); response includes `ingest_action`: `created`, `unchanged`, or `updated` |
+| `POST` | `/api/documents/upload` | Multipart upload (`.txt`, `.md`, `.pdf`, `.docx`, `.html`); response includes `ingest_action`: `created`, `unchanged`, or `updated` |
 | `DELETE` | `/api/documents/{id}` | Delete document, chunks, and storage object |
 | `POST` | `/api/chat/stream` | SSE chat; emits `sources` then `token` events |
 

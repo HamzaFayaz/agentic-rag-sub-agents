@@ -51,49 +51,53 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 ---
 
-## Current focus: Modules 4 + 5 + 6 (single delivery)
+## Modules 4 + 5 + 6 — Robust Retrieval Upgrade — **implemented** *(branch `module-4-5-6-retrieval`)*
 
-**Approach:** Build Modules 4, 5, and 6 together as one robust retrieval upgrade — not three separate releases. Shared ingest/retrieve path: better parsing → document metadata → hybrid search + reranking → same small-context chat flow (never pass full docs to the LLM).
+**Approach:** Single delivery — docling parsing → document metadata → hybrid search + reranking → same small-context chat flow.
 
-| Module | Role in combined build |
-|--------|-------------------------|
-| **4 — Metadata extraction** | LLM structured metadata at ingest; filter/narrow retrieval by document fields |
-| **5 — Multi-format support** | Docling (or equivalent) for PDF/DOCX/HTML/Markdown; cleaner text → better chunks |
-| **6 — Hybrid search & reranking** | Keyword + vector (RRF), then rerank top candidates before prompt injection |
+| Module | Role |
+|--------|------|
+| **4 — Metadata extraction** | One `gpt-4o-mini` structured call per new/changed doc → `metadata.llm`; fail-open |
+| **5 — Multi-format + chunking** | Docling parse; rule router (FIXED / SECTION / parent–child); `.txt`, `.md`, `.pdf`, `.docx`, `.html` |
+| **6 — Hybrid + rerank** | Vector + FTS → RRF → Cohere rerank → parent context expansion |
 
-**Target pipeline**
+**Pipeline**
 
 ```text
-Upload → parse (M5) → metadata extract (M4) → chunk → embed
-Chat   → optional metadata filters (M4) → hybrid retrieve (M6) → rerank (M6) → top-K → LLM
+Upload → parse (M5) → metadata.parser → chunk → metadata.llm (M4) → embed children → ready
+Chat   → hybrid (M6) → rerank (M6) → parent context → top-K → LLM
 ```
 
-### Module 4: Metadata Extraction — **in progress** *(with M5 + M6)*
+### Module 4: Metadata Extraction — **complete**
 
-- [ ] Migration: `documents.metadata` (jsonb) + indexes as needed for filters
-- [ ] Backend: Pydantic schema + LLM extraction during ingest (skip on `unchanged`)
-- [ ] Retrieval: apply metadata filters in `match`/search path
-- [ ] Frontend: show document metadata on Documents list/detail (optional filters later)
+- [x] Migration `004_metadata.sql`: `documents.metadata` jsonb + doc_type index
+- [x] Backend: `MetadataExtractor` + Pydantic schema; fail-open during ingest
+- [ ] Retrieval: apply metadata filters in search path *(deferred — optional v1)*
+- [x] Frontend: doc_type / topics / summary on Documents list
 
-### Module 5: Multi-Format Support — **in progress** *(with M4 + M6)*
+### Module 5: Multi-Format Support — **complete**
 
-- [ ] Replace/extend parsing with docling for PDF, DOCX, HTML, Markdown
-- [ ] Upload API accepts new types; size/MIME validation updated
-- [ ] Cascade delete unchanged (document, chunks, storage)
-- [ ] `.env.example` / README updated for new formats and dependencies
+- [x] `parsing.py` — docling with pypdf/plain-text fallback
+- [x] Structure-aware chunking with parent–child for long sections
+- [x] Migration `005_chunk_structure.sql`
+- [x] Upload accepts `.docx`, `.html`; MIME validation updated
 
-### Module 6: Hybrid Search & Reranking — **in progress** *(with M4 + M5)*
+### Module 6: Hybrid Search & Reranking — **complete**
 
-- [ ] Supabase: full-text / keyword search on `document_chunks` (or parallel RPC)
-- [ ] Backend: hybrid retrieval (vector + keyword, RRF merge)
-- [ ] Backend: reranker step (wider candidate pool → top-N for prompt)
-- [ ] Config: env vars for hybrid weights, rerank model, candidate counts
-- [ ] Validation: exact-term queries + paraphrase queries beat vector-only baseline
+- [x] Migration `006_hybrid_search.sql` — `content_tsv`, `match_chunks_keyword` RPC
+- [x] `HybridSearchService` — vector + keyword, RRF merge
+- [x] `CohereReranker` — fail-open without key
+- [x] Config: `COHERE_API_KEY`, `RERANK_*`, `HYBRID_CANDIDATE_K`
 
-**Combined validation (E2E)**
+**Combined validation (E2E)** — *apply migrations 004–006 in Supabase, then run:*
 
-- [ ] Upload mixed formats (txt, md, pdf, docx) → `ready` with metadata populated
+- [ ] Upload mixed formats (txt, md, pdf, docx) → `ready` with `metadata.parser` + `metadata.llm`
 - [ ] Chat: paraphrased question retrieves correct passage (vector + rerank)
-- [ ] Chat: exact token (SKU, section cite, name) retrieves correct passage (hybrid)
-- [ ] Metadata filter narrows to correct document when library has similar topics
+- [ ] Chat: exact token retrieves correct passage (hybrid keyword leg)
+- [ ] Parent–child doc: answer uses expanded section context
 - [ ] Re-upload unchanged file skips re-extract and re-embed (Module 3 + M4)
+- [ ] Rerank fail-open: works with `RERANK_ENABLED=false` or missing `COHERE_API_KEY`
+
+### Planned next: LangSmith full tracing
+
+- [ ] See [.agent/plans/5.langsmith-full-tracing.md](.agent/plans/5.langsmith-full-tracing.md)
