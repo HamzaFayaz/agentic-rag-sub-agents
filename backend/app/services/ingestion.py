@@ -6,13 +6,16 @@ from app.config import settings
 from app.services.chunking import ChunkService
 from app.services.embedding import OpenAIEmbeddingClient
 from app.services.hashing import content_hash
+from app.services.metadata import MetadataExtractor, build_llm_metadata
 from app.services.supabase_client import SupabaseRepository
 
-ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf"}
+ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx", ".html"}
 MIME_BY_EXT = {
     ".txt": "text/plain",
     ".md": "text/markdown",
     ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".html": "text/html",
 }
 
 
@@ -43,7 +46,7 @@ class IngestionService:
         if ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Allowed types: .txt, .md, .pdf",
+                detail="Allowed types: .txt, .md, .pdf, .docx, .html",
             )
 
         digest = content_hash(content)
@@ -189,20 +192,61 @@ class IngestionService:
             document_id, user_id, {"status": "processing", "content_hash": digest}
         )
 
-        text_chunks = self._chunks.chunk_file(filename, content)
-        if not text_chunks:
-            raise ValueError("No text content to index")
+        chunks, parser_meta = self._chunks.chunk_document(filename, content)
 
-        embeddings = await self._embeddings.embed_texts(text_chunks)
-        chunk_rows = [
+        existing_doc = self._repo.get_document(document_id, user_id) or {}
+        existing_metadata = existing_doc.get("metadata") or {}
+        merged_metadata = {**existing_metadata, "parser": parser_meta}
+
+        if settings.metadata_extraction_enabled:
+            try:
+                sample = "".join((c.get("content") or "") for c in chunks)[:8_000]
+                llm_meta = await MetadataExtractor().extract(
+                    filename=filename,
+                    parser_meta=parser_meta,
+                    text_sample=sample,
+                )
+                if llm_meta is not None:
+                    merged_metadata["llm"] = build_llm_metadata(llm_meta)
+            except Exception:
+                # Fail-open: indexing must continue even if metadata extraction fails.
+                pass
+
+        self._repo.update_document(
+            document_id,
+            user_id,
             {
-                "chunk_index": index,
-                "content": text,
-                "embedding": vector,
-                "token_count": len(text.split()),
-            }
-            for index, (text, vector) in enumerate(zip(text_chunks, embeddings))
-        ]
+                "metadata": merged_metadata,
+            },
+        )
+
+        embeddable_chunks = [c for c in chunks if c.get("chunk_level") != "parent"]
+        embeddings: list[list[float]] = []
+        if embeddable_chunks:
+            embeddings = await self._embeddings.embed_texts(
+                [c.get("content") or "" for c in embeddable_chunks]
+            )
+
+        embeddings_by_index = {
+            chunk.get("chunk_index"): vector
+            for chunk, vector in zip(embeddable_chunks, embeddings)
+        }
+
+        chunk_rows = []
+        for chunk in chunks:
+            chunk_rows.append(
+                {
+                    "chunk_index": chunk["chunk_index"],
+                    "content": chunk["content"],
+                    "embedding": embeddings_by_index.get(chunk["chunk_index"]),
+                    "token_count": chunk.get("token_count"),
+                    "section_title": chunk.get("section_title"),
+                    "heading_level": chunk.get("heading_level"),
+                    "parent_index": chunk.get("parent_index"),
+                    "chunk_level": chunk.get("chunk_level"),
+                }
+            )
+
         self._repo.insert_document_chunks(document_id, user_id, chunk_rows)
 
         return self._repo.update_document(
