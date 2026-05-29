@@ -21,25 +21,34 @@ export function MessageBubble({
   const isUser = role === "user";
   const showThinking = !isUser && isThinking && !content;
 
+  if (isUser) {
+    return (
+      <div className="flex justify-end py-1">
+        <div
+          className={cn(
+            "max-w-[85%] rounded-[1.25rem] px-4 py-2.5",
+            "bg-bubble-user text-[15px] leading-relaxed text-bubble-user-fg",
+            "whitespace-pre-wrap",
+          )}
+        >
+          {content}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-2 text-sm",
-          isUser
-            ? "bg-bubble-user text-bubble-user-fg whitespace-pre-wrap"
-            : "border border-bubble-assistant-border bg-bubble-assistant text-foreground",
-        )}
-      >
+    <div className="w-full py-1">
+      <div className="text-[15px] leading-7 text-foreground">
         {showThinking ? (
           <ThinkingIndicator />
         ) : (
           <div className="whitespace-pre-wrap">{content}</div>
         )}
-        {!isUser && sources && sources.length > 0 && (
-          <SourceCitations sources={sources} />
-        )}
       </div>
+      {!showThinking && sources && sources.length > 0 && (
+        <SourceCitations sources={sources} />
+      )}
     </div>
   );
 }
