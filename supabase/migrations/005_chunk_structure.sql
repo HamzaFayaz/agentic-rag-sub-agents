@@ -17,6 +17,9 @@ create index if not exists document_chunks_parent_id_idx
   where parent_id is not null;
 
 -- Replace match RPC to return new fields and exclude rows without embedding
+-- (Postgres cannot change return type via CREATE OR REPLACE — drop first)
+drop function if exists public.match_document_chunks(vector, integer, double precision);
+
 create or replace function public.match_document_chunks(
   query_embedding vector(1536),
   match_count int default 5,

@@ -53,6 +53,8 @@ as $$
 $$;
 
 -- 4. Updated vector similarity RPC with section fields + embedding filter
+drop function if exists public.match_document_chunks(vector, integer, double precision);
+
 create or replace function public.match_document_chunks(
   query_embedding vector(1536),
   match_count int default 5,

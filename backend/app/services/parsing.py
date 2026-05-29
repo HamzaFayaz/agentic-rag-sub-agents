@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from pypdf import PdfReader
 
@@ -40,6 +41,24 @@ class ParseResult:
 
 def estimate_tokens(text: str) -> int:
     return len(text) // 4
+
+
+def _scalar_attr(obj: Any, name: str, default: Any = None) -> Any:
+    """Read a docling/document attribute; call it when the API exposes a method."""
+    value = getattr(obj, name, default)
+    if callable(value):
+        try:
+            value = value()
+        except Exception:
+            return default
+    return value
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value if value is not None else default)
+    except (TypeError, ValueError):
+        return default
 
 
 def _compute_section_stats(
@@ -91,12 +110,12 @@ def _parse_with_docling(content: bytes, suffix: str) -> ParseResult | None:
         heading_count, max_section_tokens = _compute_section_stats(text, outline)
 
         title_guess = _guess_title(outline, text)
-        lang = getattr(doc, "language", None)
+        lang = _scalar_attr(doc, "language")
 
         stats = ParseStats(
             heading_count=heading_count,
             max_section_tokens=max_section_tokens,
-            page_count=getattr(doc, "num_pages", 0) or 0,
+            page_count=_coerce_int(_scalar_attr(doc, "num_pages", 0)),
             language=lang if isinstance(lang, str) else None,
             title_guess=title_guess,
             has_text=True,

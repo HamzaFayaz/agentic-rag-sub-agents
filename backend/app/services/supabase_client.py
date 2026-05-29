@@ -9,6 +9,13 @@ from app.config import settings
 DOCUMENTS_BUCKET = "documents"
 
 
+def _maybe_single_row(result: Any) -> dict[str, Any] | None:
+    """Supabase may return None from maybe_single().execute() when no row exists."""
+    if result is None:
+        return None
+    return result.data
+
+
 class SupabaseRepository:
     def __init__(self, access_token: str) -> None:
         # User JWT must be on both PostgREST and Storage; postgrest.auth() alone
@@ -31,7 +38,7 @@ class SupabaseRepository:
             .maybe_single()
             .execute()
         )
-        return result.data is not None
+        return _maybe_single_row(result) is not None
 
     def list_messages(
         self, thread_id: UUID, limit: int | None = None
@@ -91,7 +98,7 @@ class SupabaseRepository:
             .maybe_single()
             .execute()
         )
-        return result.data
+        return _maybe_single_row(result)
 
     def get_document(self, document_id: UUID, user_id: str) -> dict[str, Any] | None:
         result = (
@@ -102,7 +109,7 @@ class SupabaseRepository:
             .maybe_single()
             .execute()
         )
-        return result.data
+        return _maybe_single_row(result)
 
     def create_document(
         self,
@@ -287,7 +294,7 @@ class SupabaseRepository:
             .maybe_single()
             .execute()
         )
-        return result.data
+        return _maybe_single_row(result)
 
     def count_ready_documents(self, user_id: str) -> int:
         result = (
