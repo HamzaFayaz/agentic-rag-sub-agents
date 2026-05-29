@@ -41,8 +41,15 @@ export function useDocuments(accessToken: string | undefined) {
       setError(null);
       try {
         const doc = await uploadDocument(accessToken, file);
+        if (doc.ingest_action === "unchanged") {
+          setDocuments((prev) =>
+            prev.map((d) => (d.id === doc.id ? { ...d, ...doc } : d)),
+          );
+          return doc;
+        }
         setDocuments((prev) => [doc, ...prev.filter((d) => d.id !== doc.id)]);
         await loadDocuments();
+        return doc;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
         throw err;
