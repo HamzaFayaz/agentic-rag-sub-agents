@@ -4,6 +4,11 @@ from typing import Sequence
 import cohere
 
 from app.config import settings
+from app.services.tracing import (
+    process_cohere_rerank_inputs,
+    process_cohere_rerank_outputs,
+    traceable_if_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +32,26 @@ class CohereReranker:
     async def rerank(
         self, query: str, documents: Sequence[str], top_n: int
     ) -> list[int]:
-        """Return indices of the top_n most relevant documents.
+        result = await self._rerank_traced(query, documents, top_n)
+        return result["indices"]
 
-        Fail-open: returns original order sliced to top_n on any error.
-        """
+    @traceable_if_enabled(
+        name="cohere_rerank",
+        run_type="tool",
+        process_inputs=process_cohere_rerank_inputs,
+        process_outputs=process_cohere_rerank_outputs,
+    )
+    async def _rerank_traced(
+        self, query: str, documents: Sequence[str], top_n: int
+    ) -> dict:
+        """Return indices and trace-friendly scores."""
         n = min(top_n, len(documents))
-        fallback = list(range(n))
+        fallback_indices = list(range(n))
+        fallback = {
+            "indices": fallback_indices,
+            "top_indices": fallback_indices,
+            "scores": [],
+        }
 
         if not self._client or not documents:
             return fallback
@@ -44,7 +63,21 @@ class CohereReranker:
                 documents=list(documents),
                 top_n=n,
             )
-            return [r.index for r in response.results]
+            indices = [r.index for r in response.results]
+            scores = [
+                {
+                    "index": r.index,
+                    "relevance_score": getattr(r, "relevance_score", None),
+                }
+                for r in response.results
+            ]
+            return {
+                "indices": indices,
+                "top_indices": indices,
+                "scores": scores,
+            }
         except Exception:
-            logger.warning("Cohere rerank failed; falling back to original order", exc_info=True)
+            logger.warning(
+                "Cohere rerank failed; falling back to original order", exc_info=True
+            )
             return fallback

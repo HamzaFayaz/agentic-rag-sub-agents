@@ -7,7 +7,7 @@ Production-oriented RAG application with chat and document ingestion. **Module 1
 1. [Supabase](https://supabase.com) project with **Email** auth enabled
 2. [OpenAI](https://platform.openai.com) API key (`gpt-4o-mini` + `text-embedding-3-small`)
 3. Optional: [Cohere](https://cohere.com) API key for reranking (`COHERE_API_KEY`; hybrid search works without it)
-4. Optional: [LangSmith](https://smith.langchain.com) for tracing
+4. Optional: [LangSmith](https://smith.langchain.com) for tracing — set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true`
 
 ## Quick start
 
@@ -107,6 +107,32 @@ supabase/migrations/  Postgres schema + RLS + pgvector RPC
 2. User A uploads a document and asks a question grounded in it
 3. As User B, confirm the document is not visible and chat does not retrieve User A's chunks
 4. Optional: `curl /api/chat/stream` with User B's JWT and User A's `thread_id` → expect **403**
+
+## LangSmith tracing
+
+Enable in `backend/.env`:
+
+```env
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_TRACING=true
+LANGSMITH_PROJECT=agentic-rag-module-1
+```
+
+Optional: `LANGSMITH_LOG_CHUNK_TEXT=true` to include full chunk text in span outputs (default: 200-char snippets only).
+
+| Span | When | What you see |
+|------|------|----------------|
+| `chat_turn` | Each chat message | `thread_id`, query, `source_count`, `has_context` |
+| `rag_retrieve` | RAG lookup | Filenames, scores, chunk ids, snippets |
+| `hybrid_rrf` | Hybrid merge | Vector/keyword counts, top candidate ids |
+| `cohere_rerank` | Rerank step | Top indices and relevance scores |
+| `build_rag_prompt` | Prompt assembly | Chunk count, system prompt length |
+| `chat_completion` | LLM stream | Full messages + assistant text (via `wrap_openai`) |
+| `embed_texts` | Query/chunk embed | Count, model, char length |
+| `document_ingest` | Upload indexing | Filename, chunk strategy/count, status |
+| `metadata_extract` | Ingest LLM step | Filename, parsed `metadata.llm` or null |
+
+Ingest traces are **separate** from chat (upload path). Chat retrieval spans nest under `chat_turn` when `prepare_stream` runs.
 
 ## Docs
 

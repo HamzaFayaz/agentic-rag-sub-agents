@@ -6,6 +6,11 @@ from app.services.embedding import OpenAIEmbeddingClient
 from app.services.hybrid import HybridSearchService
 from app.services.reranker import CohereReranker
 from app.services.supabase_client import SupabaseRepository
+from app.services.tracing import (
+    process_rag_retrieve_inputs,
+    process_rag_retrieve_outputs,
+    traceable_if_enabled,
+)
 
 
 @dataclass
@@ -14,6 +19,7 @@ class RetrievedSource:
     filename: str
     snippet: str
     similarity: float
+    chunk_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -33,6 +39,12 @@ class RetrievalService:
         self._repo = repo
         self._embeddings = embedding_client or OpenAIEmbeddingClient()
 
+    @traceable_if_enabled(
+        name="rag_retrieve",
+        run_type="retriever",
+        process_inputs=process_rag_retrieve_inputs,
+        process_outputs=process_rag_retrieve_outputs,
+    )
     async def retrieve(self, query: str) -> tuple[list[str], list[RetrievedSource]]:
         query_vectors = await self._embeddings.embed_texts([query])
         if not query_vectors:
@@ -63,6 +75,7 @@ class RetrievalService:
             content = hit.get("content") or ""
             score = float(hit.get("combined_score") or hit.get("similarity") or 0)
             document_id = str(hit.get("document_id") or "")
+            chunk_id = str(hit.get("id") or "")
             parent_id = hit.get("parent_id")
 
             snippet = content[:200] + ("…" if len(content) > 200 else "")
@@ -72,6 +85,7 @@ class RetrievalService:
                     filename=filename,
                     snippet=snippet,
                     similarity=score,
+                    chunk_id=chunk_id,
                 )
             )
 

@@ -3,8 +3,19 @@ from typing import Any
 
 from app.config import settings
 from app.services.supabase_client import SupabaseRepository
+from app.services.tracing import (
+    process_hybrid_rrf_inputs,
+    process_hybrid_rrf_outputs,
+    traceable_if_enabled,
+)
 
 
+@traceable_if_enabled(
+    name="hybrid_rrf",
+    run_type="tool",
+    process_inputs=process_hybrid_rrf_inputs,
+    process_outputs=process_hybrid_rrf_outputs,
+)
 def reciprocal_rank_fusion(
     vector_hits: list[dict[str, Any]],
     keyword_hits: list[dict[str, Any]],

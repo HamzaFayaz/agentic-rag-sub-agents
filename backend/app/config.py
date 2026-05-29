@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     langsmith_api_key: str | None = None
     langsmith_project: str = "agentic-rag-module-1"
     langsmith_tracing: bool = False
+    langsmith_log_chunk_text: bool = False
     cors_origins: str = "http://localhost:5173"
 
     rag_top_k: int = 5

@@ -98,6 +98,13 @@ Chat   → hybrid (M6) → rerank (M6) → parent context → top-K → LLM
 - [ ] Re-upload unchanged file skips re-extract and re-embed (Module 3 + M4)
 - [ ] Rerank fail-open: works with `RERANK_ENABLED=false` or missing `COHERE_API_KEY`
 
-### Planned next: LangSmith full tracing
+### LangSmith full tracing
 
-- [ ] See [.agent/plans/5.langsmith-full-tracing.md](.agent/plans/5.langsmith-full-tracing.md)
+- [x] P0 — `tracing.py` helper + `LANGSMITH_LOG_CHUNK_TEXT`
+- [x] P1 — `chat_turn` + `rag_retrieve`
+- [x] P2 — `hybrid_rrf` + `cohere_rerank`
+- [x] P3 — `build_rag_prompt`
+- [x] P4 — `document_ingest` + `metadata_extract`
+- [x] P5 — `embed_texts`
+- [x] P6 — README, `.env.example`, PROGRESS
+- Plan: [.agent/plans/5.langsmith-full-tracing.md](.agent/plans/5.langsmith-full-tracing.md)

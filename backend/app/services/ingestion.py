@@ -6,8 +6,13 @@ from app.config import settings
 from app.services.chunking import ChunkService
 from app.services.embedding import OpenAIEmbeddingClient
 from app.services.hashing import content_hash
-from app.services.metadata import MetadataExtractor, build_llm_metadata
+from app.services.metadata import MetadataExtractor
 from app.services.supabase_client import SupabaseRepository
+from app.services.tracing import (
+    process_document_ingest_inputs,
+    process_document_ingest_outputs,
+    traceable_if_enabled,
+)
 
 ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx", ".html"}
 MIME_BY_EXT = {
@@ -177,6 +182,12 @@ class IngestionService:
                 detail=str(exc),
             ) from exc
 
+    @traceable_if_enabled(
+        name="document_ingest",
+        run_type="chain",
+        process_inputs=process_document_ingest_inputs,
+        process_outputs=process_document_ingest_outputs,
+    )
     async def _process_document(
         self,
         document_id: UUID,
@@ -193,6 +204,7 @@ class IngestionService:
         )
 
         chunks, parser_meta = self._chunks.chunk_document(filename, content)
+        parser_meta = {**parser_meta, "chunk_count": len(chunks)}
 
         existing_doc = self._repo.get_document(document_id, user_id) or {}
         existing_metadata = existing_doc.get("metadata") or {}
@@ -207,7 +219,7 @@ class IngestionService:
                     text_sample=sample,
                 )
                 if llm_meta is not None:
-                    merged_metadata["llm"] = build_llm_metadata(llm_meta)
+                    merged_metadata["llm"] = llm_meta
             except Exception:
                 # Fail-open: indexing must continue even if metadata extraction fails.
                 pass

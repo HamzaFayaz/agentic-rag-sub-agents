@@ -9,6 +9,11 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.services.tracing import (
+    process_metadata_extract_inputs,
+    process_metadata_extract_outputs,
+    traceable_if_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +62,21 @@ class MetadataExtractor:
     """Extracts structured metadata from a document via OpenAI structured output."""
 
     def __init__(self) -> None:
+        # Plain client: structured parse responses break LangSmith OpenAI serialization.
         self._client = AsyncOpenAI(api_key=settings.openai_api_key)
 
+    @traceable_if_enabled(
+        name="metadata_extract",
+        run_type="llm",
+        process_inputs=process_metadata_extract_inputs,
+        process_outputs=process_metadata_extract_outputs,
+    )
     async def extract(
         self,
         filename: str,
         parser_meta: dict[str, Any],
         text_sample: str,
-    ) -> DocumentMetadata | None:
+    ) -> dict[str, Any] | None:
         if not settings.metadata_extraction_enabled:
             return None
 
@@ -82,7 +94,12 @@ class MetadataExtractor:
                 ],
                 response_format=DocumentMetadata,
             )
-            return completion.choices[0].message.parsed
+            parsed = completion.choices[0].message.parsed
+            if parsed is None:
+                return None
+            if isinstance(parsed, DocumentMetadata):
+                return build_llm_metadata(parsed)
+            return build_llm_metadata(DocumentMetadata.model_validate(parsed))
         except Exception:
             logger.exception("Metadata extraction failed for %s – skipping", filename)
             return None
