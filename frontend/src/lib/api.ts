@@ -6,13 +6,18 @@ export function apiBaseUrl(): string {
   return "";
 }
 
+export type IngestAction = "created" | "updated" | "unchanged";
+
 export type DocumentRecord = {
   id: string;
   filename: string;
   status: "pending" | "processing" | "ready" | "failed";
   byte_size: number;
+  content_hash?: string | null;
+  ingest_action?: IngestAction;
   error_message: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 function authHeaders(accessToken: string): HeadersInit {

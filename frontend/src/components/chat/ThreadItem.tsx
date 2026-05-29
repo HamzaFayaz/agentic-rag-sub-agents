@@ -14,8 +14,8 @@ export function ThreadItem({ title, active, onClick }: ThreadItemProps) {
       className={cn(
         "w-full rounded-md px-3 py-2 text-left text-sm transition-colors",
         active
-          ? "bg-slate-900 text-white"
-          : "text-slate-700 hover:bg-slate-100",
+          ? "bg-accent text-accent-foreground"
+          : "text-foreground hover:bg-muted",
       )}
     >
       <span className="line-clamp-1">{title}</span>

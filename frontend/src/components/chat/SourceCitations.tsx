@@ -1,5 +1,3 @@
-import { Badge } from "@/components/ui/badge";
-
 export type SourceCitation = {
   document_id: string;
   filename: string;
@@ -15,17 +13,15 @@ export function SourceCitations({ sources }: SourceCitationsProps) {
   if (sources.length === 0) return null;
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      <span className="text-xs font-medium text-slate-500">Sources:</span>
+    <div className="mt-3 flex flex-wrap items-center gap-2">
       {sources.map((source) => (
-        <Badge
+        <span
           key={`${source.document_id}-${source.filename}`}
-          variant="outline"
-          className="max-w-[200px] truncate"
+          className="inline-flex max-w-[220px] truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
           title={source.snippet}
         >
           {source.filename}
-        </Badge>
+        </span>
       ))}
     </div>
   );

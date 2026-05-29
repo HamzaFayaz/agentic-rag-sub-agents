@@ -19,9 +19,9 @@ export function ThreadList({
   onCreate,
 }: ThreadListProps) {
   return (
-    <div className="flex h-full flex-col border-r border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-200 p-3">
-        <h2 className="text-sm font-semibold text-slate-900">Chats</h2>
+    <div className="flex h-full flex-col border-r border-border bg-surface">
+      <div className="flex items-center justify-between border-b border-border p-3">
+        <h2 className="text-sm font-semibold text-foreground">Chats</h2>
         <Button variant="outline" size="sm" onClick={onCreate} aria-label="New chat">
           <Plus className="h-4 w-4" />
         </Button>

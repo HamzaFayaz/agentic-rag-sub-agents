@@ -1,6 +1,6 @@
 # agentic-rag-sub-agents
 
-Production-oriented RAG application with chat and document ingestion. **Module 1**: auth, threaded chat, Supabase-backed history, streaming Chat Completions, LangSmith tracing. **Module 2**: document upload, chunking, embeddings (pgvector), retrieval-augmented chat with source citations.
+Production-oriented RAG application with chat and document ingestion. **Module 1**: auth, threaded chat, Supabase-backed history, streaming Chat Completions, LangSmith tracing. **Module 2**: document upload, chunking, embeddings (pgvector), retrieval-augmented chat with source citations. **Module 3**: record manager — SHA-256 content hash, skip unchanged re-uploads, update in place when the same filename has new content.
 
 ## Prerequisites (you)
 
@@ -16,6 +16,7 @@ Run in the Supabase **SQL Editor**, in order:
 
 1. `supabase/migrations/001_threads_messages.sql`
 2. `supabase/migrations/002_documents_rag.sql`
+3. `supabase/migrations/003_record_manager.sql` — `content_hash` column, unique `(user_id, filename)`
 
 Confirm `threads`, `messages`, `documents`, and `document_chunks` exist with RLS enabled.
 
@@ -60,14 +61,26 @@ npm run dev
 
 Open http://localhost:5173 — sign up, upload documents on **Documents**, then chat with RAG on **Chat**.
 
-## API (Module 2)
+## API (Module 2+)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/documents` | List current user's documents |
-| `POST` | `/api/documents/upload` | Multipart file upload (`.txt`, `.md`, `.pdf`) |
+| `GET` | `/api/documents` | List current user's documents (includes optional `content_hash`) |
+| `POST` | `/api/documents/upload` | Multipart upload (`.txt`, `.md`, `.pdf`); response includes `ingest_action`: `created`, `unchanged`, or `updated` |
 | `DELETE` | `/api/documents/{id}` | Delete document, chunks, and storage object |
 | `POST` | `/api/chat/stream` | SSE chat; emits `sources` then `token` events |
+
+### Upload record manager (Module 3)
+
+Per user, each **filename** is one logical slot:
+
+| Scenario | `ingest_action` | Behavior |
+|----------|-----------------|----------|
+| New filename | `created` | New row; chunk + embed as before |
+| Same filename, same SHA-256 hash, status `ready` | `unchanged` | Return existing row; no chunk/embed work |
+| Same filename, different hash (or legacy row without hash) | `updated` | Same document `id`; replace storage, clear chunks, re-index |
+
+Hash is computed over full file bytes. Different filenames with identical content remain separate rows.
 
 ## Project layout
 

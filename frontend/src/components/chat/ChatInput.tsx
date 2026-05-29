@@ -1,55 +1,111 @@
-import { Square } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { ArrowUp, Square } from "lucide-react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type ChatInputProps = {
   streaming?: boolean;
+  centered?: boolean;
   onSend: (content: string) => void;
   onStop?: () => void;
 };
 
-export function ChatInput({ streaming, onSend, onStop }: ChatInputProps) {
+export function ChatInput({
+  streaming,
+  centered = false,
+  onSend,
+  onStop,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  function submit() {
     if (streaming) return;
     const trimmed = value.trim();
     if (!trimmed) return;
     onSend(trimmed);
     setValue("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    submit();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submit();
+    }
+  }
+
+  function handleInput() {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }
+
+  const canSend = !streaming && value.trim().length > 0;
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="border-t border-slate-200 bg-white p-4"
+      className={cn(
+        "w-full",
+        centered ? "px-0" : "border-t border-border bg-surface p-4",
+      )}
     >
-      <div className="mx-auto flex max-w-3xl gap-2">
-        <Input
+      <div
+        className={cn(
+          "mx-auto flex max-w-3xl items-end gap-2 rounded-3xl border border-border bg-input px-4 py-3 shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-ring/40",
+          centered && "shadow-md",
+        )}
+      >
+        <textarea
+          ref={textareaRef}
+          rows={centered ? 2 : 1}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={streaming ? "Generating response…" : "Type a message…"}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            streaming ? "Generating response…" : "Ask anything…"
+          }
           disabled={streaming}
+          className="max-h-[200px] min-h-[24px] flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
         />
         {streaming ? (
           <Button
             type="button"
-            className="bg-red-600 text-white hover:bg-red-700"
+            size="sm"
+            className="h-9 shrink-0 rounded-full bg-red-600 px-3 text-white hover:bg-red-700"
             onClick={() => onStop?.()}
             aria-label="Stop generating"
           >
             <Square className="size-4 fill-current" />
-            Stop
           </Button>
         ) : (
-          <Button type="submit" disabled={!value.trim()}>
-            Send
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!canSend}
+            className="h-9 w-9 shrink-0 rounded-full p-0"
+            aria-label="Send message"
+          >
+            <ArrowUp className="size-4" />
           </Button>
         )}
       </div>
+      {!centered && (
+        <p className="mx-auto mt-2 max-w-3xl text-center text-xs text-muted-foreground">
+          Enter to send · Shift+Enter for new line
+        </p>
+      )}
     </form>
   );
 }
