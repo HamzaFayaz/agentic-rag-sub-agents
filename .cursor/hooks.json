@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "python .cursor/hooks/allow-git-stage-commit.py",
+        "matcher": "git add|git commit"
+      }
+    ]
+  }
+}

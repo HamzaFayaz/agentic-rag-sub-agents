@@ -1,0 +1,15 @@
+{
+  "approvalMode": "allowlist",
+  "permissions": {
+    "allow": [
+      "Shell(git add*)",
+      "Shell(git commit*)"
+    ],
+    "deny": [
+      "Shell(git push*)",
+      "Shell(git reset*)",
+      "Shell(git rebase*)",
+      "Shell(git merge*)"
+    ]
+  }
+}
