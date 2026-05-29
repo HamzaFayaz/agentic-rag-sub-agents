@@ -8,14 +8,18 @@ export function SignupPage() {
   const { session, loading } = useAuth();
 
   if (loading) {
-    return <div className="p-8 text-center">Loading…</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-8 text-center text-foreground">
+        Loading…
+      </div>
+    );
   }
   if (session) {
     return <Navigate to="/" replace />;
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md p-6">
         <h1 className="mb-6 text-center text-2xl font-semibold">Create account</h1>
         <SignupForm />

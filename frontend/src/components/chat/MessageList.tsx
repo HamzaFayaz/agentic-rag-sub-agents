@@ -21,7 +21,9 @@ export function MessageList({ messages, loading, streaming }: MessageListProps) 
     <ScrollArea className="flex-1 p-4">
       <div className="mx-auto flex max-w-3xl flex-col gap-3">
         {loading && (
-          <p className="text-center text-sm text-slate-500">Loading messages…</p>
+          <p className="text-center text-sm text-muted-foreground">
+            Loading messages…
+          </p>
         )}
         {messages.map((message) => (
           <MessageBubble

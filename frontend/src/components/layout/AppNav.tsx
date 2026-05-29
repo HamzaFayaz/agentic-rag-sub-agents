@@ -6,8 +6,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
     "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
     isActive
-      ? "bg-slate-100 text-slate-900"
-      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+      ? "bg-muted text-foreground"
+      : "text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
 export function AppNav() {

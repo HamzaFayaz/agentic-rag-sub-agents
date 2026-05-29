@@ -27,8 +27,8 @@ export function MessageBubble({
         className={cn(
           "max-w-[80%] rounded-2xl px-4 py-2 text-sm",
           isUser
-            ? "bg-slate-900 text-white whitespace-pre-wrap"
-            : "bg-white border border-slate-200 text-slate-900",
+            ? "bg-bubble-user text-bubble-user-fg whitespace-pre-wrap"
+            : "border border-bubble-assistant-border bg-bubble-assistant text-foreground",
         )}
       >
         {showThinking ? (

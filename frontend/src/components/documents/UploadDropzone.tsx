@@ -79,20 +79,20 @@ export function UploadDropzone({ uploading, onUpload }: UploadDropzoneProps) {
         className={cn(
           "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",
           dragOver
-            ? "border-slate-400 bg-slate-50"
-            : "border-slate-200 bg-white",
+            ? "border-ring bg-muted"
+            : "border-border bg-surface",
           uploading && "pointer-events-none opacity-60",
         )}
       >
         {uploading ? (
-          <Loader2 className="mb-3 h-8 w-8 animate-spin text-slate-500" />
+          <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground" />
         ) : (
-          <FileUp className="mb-3 h-8 w-8 text-slate-400" />
+          <FileUp className="mb-3 h-8 w-8 text-muted-foreground" />
         )}
-        <p className="text-sm font-medium text-slate-900">
+        <p className="text-sm font-medium text-foreground">
           Drag and drop a file here
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-muted-foreground">
           {ACCEPTED_FILE_TYPES} · max {formatBytes(MAX_UPLOAD_BYTES)}
         </p>
         <Button
@@ -119,12 +119,12 @@ export function UploadDropzone({ uploading, onUpload }: UploadDropzoneProps) {
         />
       </div>
       {outcome && (
-        <p className="text-sm text-emerald-700" role="status">
+        <p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
           {outcome}
         </p>
       )}
       {localError && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
           {localError}
         </p>
       )}
