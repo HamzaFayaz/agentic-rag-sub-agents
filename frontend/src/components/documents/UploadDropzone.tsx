@@ -19,6 +19,7 @@ const INGEST_MESSAGES: Record<IngestAction, string> = {
   updated: "Updated — re-indexing in progress.",
   unchanged: "Already indexed — no changes detected.",
 };
+const ALLOWED_EXTENSIONS = ACCEPTED_FILE_TYPES.split(",");
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -36,8 +37,10 @@ export function UploadDropzone({ uploading, onUpload }: UploadDropzoneProps) {
       setLocalError(null);
       setOutcome(null);
       const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-      if (![".txt", ".md", ".pdf"].includes(ext)) {
-        setLocalError("Only .txt, .md, and .pdf files are supported.");
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        setLocalError(
+          "Only .txt, .md, .pdf, .docx, and .html files are supported.",
+        );
         return;
       }
       if (file.size > MAX_UPLOAD_BYTES) {

@@ -1,6 +1,7 @@
 import { Loader2, Trash2 } from "lucide-react";
 
 import { StatusBadge } from "@/components/documents/StatusBadge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DocumentRecord } from "@/lib/api";
 
@@ -17,6 +18,11 @@ function formatBytes(bytes: number): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();
+}
+
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1)}…`;
 }
 
 export function DocumentList({ documents, onDelete }: DocumentListProps) {
@@ -44,6 +50,33 @@ export function DocumentList({ documents, onDelete }: DocumentListProps) {
                   )}
                   <span className="truncate">{doc.filename}</span>
                 </div>
+                {doc.metadata?.llm && (
+                  <div className="mt-1.5 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {doc.metadata.llm.doc_type && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {doc.metadata.llm.doc_type}
+                        </Badge>
+                      )}
+                      {doc.metadata.llm.topics && doc.metadata.llm.topics.length > 0 && (
+                        <p
+                          className="text-xs text-muted-foreground"
+                          title={doc.metadata.llm.topics.join(", ")}
+                        >
+                          {doc.metadata.llm.topics.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                    {doc.metadata.llm.summary && (
+                      <p
+                        className="text-xs text-muted-foreground"
+                        title={doc.metadata.llm.summary}
+                      >
+                        {truncateText(doc.metadata.llm.summary, 120)}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {doc.status === "failed" && doc.error_message && (
                   <p
                     className="mt-1 truncate text-xs text-red-600 dark:text-red-400"
