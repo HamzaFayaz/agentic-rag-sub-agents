@@ -2,12 +2,22 @@ import { useCallback, useRef, useState } from "react";
 import { FileUp, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ACCEPTED_FILE_TYPES, MAX_UPLOAD_BYTES } from "@/lib/api";
+import {
+  ACCEPTED_FILE_TYPES,
+  MAX_UPLOAD_BYTES,
+  type IngestAction,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type UploadDropzoneProps = {
   uploading: boolean;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File) => Promise<IngestAction | void>;
+};
+
+const INGEST_MESSAGES: Record<IngestAction, string> = {
+  created: "Uploaded — indexing started.",
+  updated: "Updated — re-indexing in progress.",
+  unchanged: "Already indexed — no changes detected.",
 };
 
 function formatBytes(bytes: number): string {
@@ -19,10 +29,12 @@ export function UploadDropzone({ uploading, onUpload }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
 
   const handleFile = useCallback(
     async (file: File) => {
       setLocalError(null);
+      setOutcome(null);
       const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
       if (![".txt", ".md", ".pdf"].includes(ext)) {
         setLocalError("Only .txt, .md, and .pdf files are supported.");
@@ -33,7 +45,10 @@ export function UploadDropzone({ uploading, onUpload }: UploadDropzoneProps) {
         return;
       }
       try {
-        await onUpload(file);
+        const action = await onUpload(file);
+        if (action) {
+          setOutcome(INGEST_MESSAGES[action]);
+        }
       } catch {
         // Parent hook surfaces API errors
       }
@@ -103,6 +118,11 @@ export function UploadDropzone({ uploading, onUpload }: UploadDropzoneProps) {
           }}
         />
       </div>
+      {outcome && (
+        <p className="text-sm text-emerald-700" role="status">
+          {outcome}
+        </p>
+      )}
       {localError && (
         <p className="text-sm text-red-600" role="alert">
           {localError}

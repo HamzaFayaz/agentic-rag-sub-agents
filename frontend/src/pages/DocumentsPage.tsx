@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentRealtime } from "@/hooks/useDocumentRealtime";
 import { useDocuments } from "@/hooks/useDocuments";
+import type { IngestAction } from "@/lib/api";
 
 export function DocumentsPage() {
   const { user, session } = useAuth();
@@ -39,7 +40,10 @@ export function DocumentsPage() {
         <div ref={browseRef}>
           <UploadDropzone
             uploading={uploading}
-            onUpload={upload}
+            onUpload={async (file) => {
+              const doc = await upload(file);
+              return doc?.ingest_action as IngestAction | undefined;
+            }}
           />
         </div>
 
