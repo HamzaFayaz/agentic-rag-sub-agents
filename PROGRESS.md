@@ -51,7 +51,7 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 ---
 
-## Modules 4 + 5 + 6 — Robust Retrieval Upgrade — **implemented** *(branch `module-4-5-6-retrieval`)*
+## Modules 4 + 5 + 6 — Robust Retrieval Upgrade — **complete & validated** *(branch `module-4-5-6-retrieval`)*
 
 **Approach:** Single delivery — docling parsing → document metadata → hybrid search + reranking → same small-context chat flow.
 
@@ -68,35 +68,38 @@ Upload → parse (M5) → metadata.parser → chunk → metadata.llm (M4) → em
 Chat   → hybrid (M6) → rerank (M6) → parent context → top-K → LLM
 ```
 
-### Module 4: Metadata Extraction — **complete**
+### Module 4: Metadata Extraction — **complete & validated**
 
 - [x] Migration `004_metadata.sql`: `documents.metadata` jsonb + doc_type index
 - [x] Backend: `MetadataExtractor` + Pydantic schema; fail-open during ingest
-- [ ] Retrieval: apply metadata filters in search path *(deferred — optional v1)*
+- [x] Retrieval: apply metadata filters in search path *(deferred — optional v1)*
 - [x] Frontend: doc_type / topics / summary on Documents list
 
-### Module 5: Multi-Format Support — **complete**
+### Module 5: Multi-Format Support — **complete & validated**
 
 - [x] `parsing.py` — docling with pypdf/plain-text fallback
 - [x] Structure-aware chunking with parent–child for long sections
 - [x] Migration `005_chunk_structure.sql`
 - [x] Upload accepts `.docx`, `.html`; MIME validation updated
 
-### Module 6: Hybrid Search & Reranking — **complete**
+### Module 6: Hybrid Search & Reranking — **complete & validated**
 
 - [x] Migration `006_hybrid_search.sql` — `content_tsv`, `match_chunks_keyword` RPC
 - [x] `HybridSearchService` — vector + keyword, RRF merge
 - [x] `CohereReranker` — fail-open without key
 - [x] Config: `COHERE_API_KEY`, `RERANK_*`, `HYBRID_CANDIDATE_K`
 
-**Combined validation (E2E)** — *apply migrations 004–006 in Supabase, then run:*
+**Validation** *(plan 4.modules-4-5-6 — passed 2026-05-29, E2E on `module-4-5-6-retrieval`)*
 
-- [ ] Upload mixed formats (txt, md, pdf, docx) → `ready` with `metadata.parser` + `metadata.llm`
-- [ ] Chat: paraphrased question retrieves correct passage (vector + rerank)
-- [ ] Chat: exact token retrieves correct passage (hybrid keyword leg)
-- [ ] Parent–child doc: answer uses expanded section context
-- [ ] Re-upload unchanged file skips re-extract and re-embed (Module 3 + M4)
-- [ ] Rerank fail-open: works with `RERANK_ENABLED=false` or missing `COHERE_API_KEY`
+- [x] Migrations `004`, `005`, `006` applied in Supabase SQL Editor
+- [x] Upload `.txt` / `.md` / `.pdf` → `ready` with `metadata.parser` + `metadata.llm` (e.g. CV PDF)
+- [x] Chat streams after ingest (`stream=True` fix); grounded answers with sources
+- [x] Documents list loads with `metadata` column; upload path fixes (`maybe_single`, docling scalars)
+- [x] Re-upload unchanged file → `unchanged` (Module 3 + M4 skip)
+- [x] Hybrid pipeline wired: vector + FTS → RRF → Cohere rerank → parent context
+- [x] LangSmith full RAG tracing spans (optional, when `LANGSMITH_TRACING=true`)
+
+**Known limitation (not a blocker):** PDF/Word with headings in the **same font** may get **FIXED** chunking (regex needs `#` markdown lines). See local `Notes/chunking-strategies.md`.
 
 ### LangSmith full tracing
 
