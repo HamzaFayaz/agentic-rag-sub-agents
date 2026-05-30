@@ -18,6 +18,15 @@ export type DocumentRecord = {
   error_message: string | null;
   created_at: string;
   updated_at?: string;
+  metadata?: {
+    parser?: Record<string, unknown>;
+    llm?: {
+      doc_type?: string;
+      topics?: string[];
+      summary?: string;
+      title?: string;
+    };
+  };
 };
 
 function authHeaders(accessToken: string): HeadersInit {
@@ -68,4 +77,4 @@ export async function deleteDocument(
 }
 
 export const MAX_UPLOAD_BYTES = 10_485_760;
-export const ACCEPTED_FILE_TYPES = ".txt,.md,.pdf";
+export const ACCEPTED_FILE_TYPES = ".txt,.md,.pdf,.docx,.html";

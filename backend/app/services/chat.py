@@ -5,10 +5,15 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from app.config import settings
 from app.services.openai_client import OpenAIClient
 from app.services.retrieval import RetrievalService, RetrievedSource
 from app.services.supabase_client import SupabaseRepository
+from app.services.tracing import (
+    build_traced_rag_system_prompt,
+    process_chat_turn_inputs,
+    process_chat_turn_outputs,
+    traceable_if_enabled,
+)
 
 
 @dataclass
@@ -44,6 +49,12 @@ class ChatService:
         messages.append({"role": "user", "content": user_content})
         return messages
 
+    @traceable_if_enabled(
+        name="chat_turn",
+        run_type="chain",
+        process_inputs=process_chat_turn_inputs,
+        process_outputs=process_chat_turn_outputs,
+    )
     async def prepare_stream(
         self,
         thread_id: UUID,
@@ -61,7 +72,7 @@ class ChatService:
         history_for_model = history[:-1] if history else []
 
         context_blocks, sources = await self._retrieval.retrieve(content)
-        system_content = settings.build_rag_system_prompt(context_blocks)
+        system_content = build_traced_rag_system_prompt(context_blocks)
         messages = self._build_messages(history_for_model, content, system_content)
 
         async def token_stream() -> AsyncIterator[str]:

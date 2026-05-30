@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     langsmith_api_key: str | None = None
     langsmith_project: str = "agentic-rag-module-1"
     langsmith_tracing: bool = False
+    langsmith_log_chunk_text: bool = False
     cors_origins: str = "http://localhost:5173"
 
     rag_top_k: int = 5
@@ -28,6 +29,19 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10_485_760
     chunk_size: int = 600
     chunk_overlap: int = 120
+    max_chunk_tokens: int = 800
+    min_headings_for_section: int = 2
+
+    # Module 4: LLM metadata extraction
+    metadata_extraction_enabled: bool = True
+    metadata_model: str = "gpt-4o-mini"
+
+    # Module 6: hybrid search + Cohere rerank
+    cohere_api_key: str | None = None
+    rerank_model: str = "rerank-v3.5"
+    rerank_enabled: bool = True
+    rerank_top_n: int = 8
+    hybrid_candidate_k: int = 40
 
     system_prompt: str = Field(
         default=(
