@@ -1,26 +1,123 @@
 # agentic-rag-sub-agents
 
-Production-oriented RAG application with chat and document ingestion. **Module 1**: auth, threaded chat, Supabase-backed history, streaming Chat Completions, LangSmith tracing. **Module 2**: document upload, chunking, embeddings (pgvector), retrieval-augmented chat with source citations. **Module 3**: record manager — SHA-256 content hash, skip unchanged re-uploads, update in place when the same filename has new content. **Modules 4–6**: docling parsing + structure-aware chunking, LLM document metadata, hybrid search (vector + FTS) with Cohere reranking.
+A production-oriented **Retrieval-Augmented Generation (RAG)** application with threaded chat and manual document ingestion. Upload your files, index them into pgvector, and chat with grounded answers backed by source citations.
 
-## Prerequisites (you)
+Built as a modular masterclass codebase — **Modules 1–6 are complete** ([release v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3)). Configuration is via environment variables; there is no admin UI.
+
+---
+
+## Features
+
+### Chat
+
+- Threaded conversations with persistent history in Supabase
+- Streaming responses over SSE (Server-Sent Events)
+- Retrieval-augmented answers with inline source citations
+- ChatGPT-style UI: centered welcome input, canvas-style assistant replies, dark mode toggle
+- Stateless Chat Completions API — you own memory, not the LLM provider
+
+### Document ingestion
+
+- Drag-and-drop upload for `.txt`, `.md`, `.pdf`, `.docx`, `.html`
+- Real-time processing status via Supabase Realtime
+- **Record manager** — SHA-256 content hashing; skip unchanged re-uploads, update in place when content changes
+- **Multi-format parsing** — Docling with pypdf / plain-text fallback
+- **Structure-aware chunking** — FIXED, SECTION, or parent–child strategies based on document structure
+- **LLM metadata extraction** — doc type, topics, and summary per document (fail-open)
+- Cascade delete — document row, chunks, and storage object removed together
+
+### Retrieval
+
+- **Hybrid search** — vector similarity (pgvector) + PostgreSQL full-text search
+- **RRF merge** — Reciprocal Rank Fusion combines both result sets
+- **Cohere reranking** — optional; degrades gracefully without an API key
+- **Parent context expansion** — child chunks retrieve surrounding section context for the LLM
+
+### Security & observability
+
+- Supabase Auth (email/password) with Row-Level Security on every table
+- Users can only see and retrieve their own documents and threads
+- **LangSmith tracing** — full RAG pipeline spans from chat turn through ingest (optional)
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| Backend | Python, FastAPI, Pydantic |
+| Database | Supabase (Postgres, pgvector, Auth, Storage, Realtime) |
+| LLM | OpenAI-compatible Chat Completions API |
+| Embeddings | `text-embedding-3-small` |
+| Parsing | Docling (+ pypdf fallback) |
+| Reranking | Cohere `rerank-v3.5` (optional) |
+| Observability | LangSmith |
+
+No LangChain or LangGraph — raw SDK calls only.
+
+---
+
+## Architecture
+
+### Ingestion pipeline
+
+```text
+Upload → parse (Docling) → metadata.parser → chunk (structure-aware)
+       → metadata.llm (gpt-4o-mini) → embed children → pgvector → ready
+```
+
+### Chat / retrieval pipeline
+
+```text
+User message → embed query → hybrid search (vector + FTS)
+             → RRF merge → Cohere rerank → parent context expansion
+             → build RAG prompt → stream Chat Completions → save + cite sources
+```
+
+```mermaid
+flowchart LR
+  subgraph ingest [Ingestion]
+    U[Upload] --> P[Parse]
+    P --> C[Chunk]
+    C --> M[Metadata LLM]
+    M --> E[Embed]
+    E --> V[(pgvector)]
+  end
+
+  subgraph chat [Chat]
+    Q[Query] --> H[Hybrid search]
+    H --> R[RRF + Rerank]
+    R --> L[LLM stream]
+    L --> S[Sources + reply]
+  end
+
+  V --> H
+```
+
+---
+
+## Getting started
+
+### Prerequisites
 
 1. [Supabase](https://supabase.com) project with **Email** auth enabled
-2. [OpenAI](https://platform.openai.com) API key (`gpt-4o-mini` + `text-embedding-3-small`)
-3. Optional: [Cohere](https://cohere.com) API key for reranking (`COHERE_API_KEY`; hybrid search works without it)
-4. Optional: [LangSmith](https://smith.langchain.com) for tracing — set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true`
-
-## Quick start
+2. [OpenAI](https://platform.openai.com) API key — `gpt-4o-mini` + `text-embedding-3-small`
+3. **Optional:** [Cohere](https://cohere.com) API key for reranking (`COHERE_API_KEY`)
+4. **Optional:** [LangSmith](https://smith.langchain.com) — set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true`
 
 ### 1. Database migrations
 
 Run in the Supabase **SQL Editor**, in order:
 
-1. `supabase/migrations/001_threads_messages.sql`
-2. `supabase/migrations/002_documents_rag.sql`
-3. `supabase/migrations/003_record_manager.sql` — `content_hash` column, unique `(user_id, filename)`
-4. `supabase/migrations/004_metadata.sql` — `documents.metadata` jsonb
-5. `supabase/migrations/005_chunk_structure.sql` — section/parent-child chunk columns, nullable embedding
-6. `supabase/migrations/006_hybrid_search.sql` — full-text search + keyword RPC
+| # | Migration | Purpose |
+|---|-----------|---------|
+| 1 | `001_threads_messages.sql` | Chat threads and messages + RLS |
+| 2 | `002_documents_rag.sql` | Documents, chunks, pgvector, storage RLS |
+| 3 | `003_record_manager.sql` | Content hash, unique `(user_id, filename)` |
+| 4 | `004_metadata.sql` | `documents.metadata` jsonb |
+| 5 | `005_chunk_structure.sql` | Section / parent–child chunk columns |
+| 6 | `006_hybrid_search.sql` | Full-text search + keyword RPC |
 
 Confirm `threads`, `messages`, `documents`, and `document_chunks` exist with RLS enabled.
 
@@ -35,18 +132,7 @@ cp .env.example backend/.env
 cp .env.example frontend/.env
 ```
 
-Fill in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`, and matching `VITE_*` values.
-
-Module 2 backend vars (defaults in `.env.example`):
-
-- `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`
-- `RAG_TOP_K`, `RAG_MATCH_THRESHOLD`, `MAX_UPLOAD_BYTES`, `CHUNK_SIZE`, `CHUNK_OVERLAP`
-
-Modules 4–6 backend vars:
-
-- `METADATA_EXTRACTION_ENABLED`, `METADATA_MODEL`
-- `MAX_CHUNK_TOKENS`, `MIN_HEADINGS_FOR_SECTION`
-- `COHERE_API_KEY`, `RERANK_MODEL`, `RERANK_ENABLED`, `RERANK_TOP_N`, `HYBRID_CANDIDATE_K`
+Fill in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`, and matching `VITE_*` values. See [Configuration](#configuration) for all options.
 
 ### 4. Backend
 
@@ -69,44 +155,76 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 — sign up, upload documents on **Documents**, then chat with RAG on **Chat**.
+Open **http://localhost:5173** — sign up, upload documents on **Documents**, then chat on **Chat**.
 
-## API (Module 2+)
+### Windows dev scripts
+
+From the repo root:
+
+```bat
+Scripts\start-dev.bat    # launches backend + frontend in separate windows
+Scripts\stop-dev.bat     # stops project servers
+```
+
+The start script auto-selects an available backend port (8000–8002) and configures the Vite proxy.
+
+---
+
+## Configuration
+
+All variables are documented in `.env.example`. Key groups:
+
+| Group | Variables | Notes |
+|-------|-----------|-------|
+| Core | `SUPABASE_*`, `OPENAI_*`, `CORS_ORIGINS` | Required |
+| RAG | `RAG_TOP_K`, `RAG_MATCH_THRESHOLD`, `CHUNK_SIZE`, `CHUNK_OVERLAP` | Retrieval tuning |
+| Chunking | `MAX_CHUNK_TOKENS`, `MIN_HEADINGS_FOR_SECTION` | Structure-aware routing |
+| Metadata | `METADATA_EXTRACTION_ENABLED`, `METADATA_MODEL` | LLM extraction per doc |
+| Hybrid / rerank | `COHERE_API_KEY`, `RERANK_*`, `HYBRID_CANDIDATE_K` | Rerank is fail-open |
+| LangSmith | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING`, `LANGSMITH_LOG_CHUNK_TEXT` | Optional tracing |
+| Frontend | `VITE_SUPABASE_*`, `VITE_API_URL` | Leave `VITE_API_URL` empty to use Vite proxy |
+
+If SSE streaming appears all-at-once, set `VITE_API_URL=http://localhost:8000` in `frontend/.env`.
+
+---
+
+## API reference
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/documents` | List current user's documents (includes optional `content_hash`) |
-| `POST` | `/api/documents/upload` | Multipart upload (`.txt`, `.md`, `.pdf`, `.docx`, `.html`); response includes `ingest_action`: `created`, `unchanged`, or `updated` |
+| `GET` | `/health` | Health check |
+| `GET` | `/api/me` | Auth test (Bearer JWT) |
+| `GET` | `/api/documents` | List current user's documents (includes `content_hash`, `metadata`) |
+| `POST` | `/api/documents/upload` | Multipart upload; response includes `ingest_action` |
 | `DELETE` | `/api/documents/{id}` | Delete document, chunks, and storage object |
-| `POST` | `/api/chat/stream` | SSE chat; emits `sources` then `token` events |
+| `POST` | `/api/chat/stream` | SSE chat — emits `sources` then `token` events |
 
-### Upload record manager (Module 3)
+### Supported upload formats
+
+`.txt` · `.md` · `.pdf` · `.docx` · `.html` (max size: `MAX_UPLOAD_BYTES`, default 10 MB)
+
+### Record manager (`ingest_action`)
 
 Per user, each **filename** is one logical slot:
 
 | Scenario | `ingest_action` | Behavior |
 |----------|-----------------|----------|
-| New filename | `created` | New row; chunk + embed as before |
-| Same filename, same SHA-256 hash, status `ready` | `unchanged` | Return existing row; no chunk/embed work |
-| Same filename, different hash (or legacy row without hash) | `updated` | Same document `id`; replace storage, clear chunks, re-index |
+| New filename | `created` | New row; parse, chunk, embed |
+| Same filename, same SHA-256 hash, status `ready` | `unchanged` | Return existing row; no re-processing |
+| Same filename, different hash | `updated` | Same document `id`; replace storage, re-index |
 
 Hash is computed over full file bytes. Different filenames with identical content remain separate rows.
 
-## Project layout
+### Chat stream example
 
+```bash
+curl -N -X POST http://localhost:8000/api/chat/stream \
+  -H "Authorization: Bearer YOUR_SUPABASE_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id":"THREAD_UUID","content":"What does the document say about X?"}'
 ```
-backend/app/          FastAPI (chat stream, documents, RAG)
-frontend/src/         React chat + documents UI
-supabase/migrations/  Postgres schema + RLS + pgvector RPC
-.agent/plans/         Build plans
-```
 
-## RLS smoke test
-
-1. Create User A and User B (separate sign-ups)
-2. User A uploads a document and asks a question grounded in it
-3. As User B, confirm the document is not visible and chat does not retrieve User A's chunks
-4. Optional: `curl /api/chat/stream` with User B's JWT and User A's `thread_id` → expect **403**
+---
 
 ## LangSmith tracing
 
@@ -118,25 +236,85 @@ LANGSMITH_TRACING=true
 LANGSMITH_PROJECT=agentic-rag-module-1
 ```
 
-Optional: `LANGSMITH_LOG_CHUNK_TEXT=true` to include full chunk text in span outputs (default: 200-char snippets only).
+Set `LANGSMITH_LOG_CHUNK_TEXT=true` to log full chunk bodies (default: 200-char snippets).
 
 | Span | When | What you see |
-|------|------|----------------|
+|------|------|--------------|
 | `chat_turn` | Each chat message | `thread_id`, query, `source_count`, `has_context` |
 | `rag_retrieve` | RAG lookup | Filenames, scores, chunk ids, snippets |
 | `hybrid_rrf` | Hybrid merge | Vector/keyword counts, top candidate ids |
 | `cohere_rerank` | Rerank step | Top indices and relevance scores |
 | `build_rag_prompt` | Prompt assembly | Chunk count, system prompt length |
-| `chat_completion` | LLM stream | Full messages + assistant text (via `wrap_openai`) |
+| `chat_completion` | LLM stream | Full messages + assistant text |
 | `embed_texts` | Query/chunk embed | Count, model, char length |
 | `document_ingest` | Upload indexing | Filename, chunk strategy/count, status |
-| `metadata_extract` | Ingest LLM step | Filename, parsed `metadata.llm` or null |
+| `metadata_extract` | Ingest LLM step | Parsed `metadata.llm` or null |
 
-Ingest traces are **separate** from chat (upload path). Chat retrieval spans nest under `chat_turn` when `prepare_stream` runs.
+Ingest traces are separate from chat traces. Retrieval spans nest under `chat_turn`.
 
-## Docs
+---
 
-- `PRD.md` — full product scope
-- `cursor.md` — agent conventions
-- `PROGRESS.md` — module checklist
-- `.agent/plans/2.byo-retrieval-rag.md` — Module 2 task cards
+## Project structure
+
+```text
+agentic-rag-sub-agents/
+├── backend/app/
+│   ├── main.py              FastAPI entry point
+│   ├── config.py            Settings (Pydantic)
+│   ├── routes/              chat.py, documents.py
+│   └── services/            chunking, embedding, hybrid, reranker,
+│                            ingestion, metadata, parsing, retrieval, tracing
+├── frontend/src/
+│   ├── pages/               Chat, Documents, Login, Signup
+│   ├── components/          chat, documents, auth, layout, ui
+│   └── hooks/               useChatStream, useDocuments, useThreads, …
+├── supabase/migrations/     Postgres schema, RLS, pgvector RPCs
+├── Scripts/                 start-dev / stop-dev (Windows)
+├── samples/                 Test documents
+└── .agent/plans/            Module build plans
+```
+
+---
+
+## Security smoke test
+
+1. Create User A and User B (separate sign-ups)
+2. User A uploads a document and asks a grounded question
+3. As User B, confirm the document is not visible and chat does not retrieve User A's chunks
+4. Optional: `POST /api/chat/stream` with User B's JWT and User A's `thread_id` → expect **403**
+
+---
+
+## Module progress
+
+| Module | Status | Summary |
+|--------|--------|---------|
+| 1 — App shell + observability | Complete | Auth, threaded chat, SSE streaming, LangSmith |
+| 2 — BYO retrieval + RAG | Complete | Upload, chunk, embed, pgvector, source citations |
+| 3 — Record manager | Complete | Content hashing, skip unchanged, update in place |
+| 4 — Metadata extraction | Complete | LLM structured metadata per document |
+| 5 — Multi-format support | Complete | Docling parsing, structure-aware chunking |
+| 6 — Hybrid search + reranking | Complete | Vector + FTS, RRF, Cohere rerank |
+| 7 — Additional tools | Planned | Text-to-SQL, web search fallback |
+| 8 — Sub-agents | Planned | Isolated context, nested tool display |
+
+See `PROGRESS.md` for the detailed checklist.
+
+---
+
+## Releases
+
+| Version | Scope |
+|---------|-------|
+| [v1](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v1) | Modules 1 & 2 — App shell + RAG |
+| [v2](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v2) | Module 3 — Record manager + UI polish |
+| [v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) | Modules 4–6 — Metadata, multi-format, hybrid retrieval + LangSmith |
+
+---
+
+## Further reading
+
+- [`PRD.md`](PRD.md) — full product scope and module roadmap
+- [`PROGRESS.md`](PROGRESS.md) — implementation checklist
+- [`cursor.md`](cursor.md) — agent / development conventions
+- [`.github/RELEASE_v3.md`](.github/RELEASE_v3.md) — latest release notes
