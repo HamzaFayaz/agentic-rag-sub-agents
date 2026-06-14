@@ -111,3 +111,29 @@ Chat   → hybrid (M6) → rerank (M6) → parent context → top-K → LLM
 - [x] P5 — `embed_texts`
 - [x] P6 — README, `.env.example`, PROGRESS
 - Plan: [.agent/plans/5.langsmith-full-tracing.md](.agent/plans/5.langsmith-full-tracing.md)
+
+---
+
+## Module 7 — Multi-Tool Agent — **complete**
+
+Replace always-on RAG with an LLM tool-calling loop. Three tools:
+
+| Tool | Use case |
+|------|----------|
+| `search_documents` | Document prose / content (hybrid RAG) |
+| `query_database` | Counts, lists, filters on library metadata (safe SQL views) |
+| `web_search` | Online / current / external info (Tavily, fail-open) |
+
+**RAG vs SQL:** chunk `content` = RAG only. Row stats and `documents.metadata` labels = SQL on `v_user_document_stats`, `v_user_chunk_meta`, `v_user_chat_stats`.
+
+### Checklist
+
+- [x] P0 — Config flags, `.env.example`, tool contracts + SSE payloads
+- [x] A — Safe views migration, SQL validator, TextToSqlService, executor
+- [x] B — Tavily web search service + executor
+- [x] C — RAG tool wrapper, ToolDispatcher
+- [x] D — SSE `tool_start`/`tool_end`, attribution UI (SQL, web URLs, tool activity)
+- [x] E — OpenAI tool-calling client, ChatService agent loop, chat route SSE
+- [x] F — LangSmith tool spans, README / PROGRESS / release notes
+
+Plan: [.agent/plans/6.module-7-multi-tool-agent.md](.agent/plans/6.module-7-multi-tool-agent.md)
