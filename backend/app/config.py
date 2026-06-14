@@ -43,6 +43,17 @@ class Settings(BaseSettings):
     rerank_top_n: int = 8
     hybrid_candidate_k: int = 40
 
+    # Module 7: multi-tool agent
+    text_to_sql_enabled: bool = True
+    web_search_enabled: bool = True
+    tavily_api_key: str | None = None
+    tavily_search_depth: str = "basic"
+    tavily_max_results: int = 5
+    database_url: str | None = None
+    sql_row_limit: int = 100
+    sql_query_timeout_sec: int = 5
+    agent_max_tool_iterations: int = 3
+
     system_prompt: str = Field(
         default=(
             "You are a helpful assistant. Answer clearly and concisely using the "
@@ -56,6 +67,12 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    def text_to_sql_active(self) -> bool:
+        return bool(self.text_to_sql_enabled and self.database_url)
+
+    def web_search_active(self) -> bool:
+        return bool(self.web_search_enabled and self.tavily_api_key)
 
     def build_rag_system_prompt(self, context_blocks: list[str]) -> str:
         if not context_blocks:
