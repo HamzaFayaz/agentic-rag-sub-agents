@@ -11,6 +11,11 @@ import jwt
 from app.config import settings
 from app.services.db import get_pool
 from app.services.sql_validator import SqlValidationError, validate_sql
+from app.services.tracing import (
+    process_query_database_inputs,
+    process_query_database_outputs,
+    traceable_if_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,12 @@ def _extract_sub(user_jwt: str) -> str:
 class TextToSqlService:
     """Validate, bind RLS context, and execute a read-only SQL query."""
 
+    @traceable_if_enabled(
+        name="query_database",
+        run_type="tool",
+        process_inputs=process_query_database_inputs,
+        process_outputs=process_query_database_outputs,
+    )
     async def execute(
         self,
         sql: str,

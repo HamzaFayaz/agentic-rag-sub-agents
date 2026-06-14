@@ -230,6 +230,33 @@ def process_embed_texts_outputs(_output: Any) -> dict[str, Any]:
     return {"model": settings.openai_embedding_model}
 
 
+def process_query_database_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    sql = str(inputs.get("sql") or "")
+    return {"sql_preview": content_for_trace(sql)}
+
+
+def process_query_database_outputs(output: Any) -> dict[str, Any]:
+    if not isinstance(output, dict):
+        return {}
+    return {
+        "row_count": output.get("row_count", 0),
+        "sql": content_for_trace(str(output.get("sql") or "")),
+    }
+
+
+def process_web_search_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    return {"query": inputs.get("query", "")}
+
+
+def process_web_search_outputs(output: Any) -> dict[str, Any]:
+    if not isinstance(output, list):
+        return {"result_count": 0}
+    return {
+        "result_count": len(output),
+        "urls": [str(item.get("url", "")) for item in output[:5] if isinstance(item, dict)],
+    }
+
+
 @traceable_if_enabled(
     name="build_rag_prompt",
     run_type="chain",

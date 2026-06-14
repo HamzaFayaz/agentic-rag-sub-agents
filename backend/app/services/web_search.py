@@ -8,7 +8,11 @@ from typing import Any
 import httpx
 
 from app.config import settings
-from app.services.tracing import traceable_if_enabled
+from app.services.tracing import (
+    process_web_search_inputs,
+    process_web_search_outputs,
+    traceable_if_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,12 @@ class TavilyWebSearchService:
         self._search_depth: str = settings.tavily_search_depth
         self._max_results: int = settings.tavily_max_results
 
-    @traceable_if_enabled(name="web_search", run_type="tool")
+    @traceable_if_enabled(
+        name="web_search",
+        run_type="tool",
+        process_inputs=process_web_search_inputs,
+        process_outputs=process_web_search_outputs,
+    )
     async def search(self, query: str) -> list[dict[str, Any]]:
         if not self._enabled or not self._api_key:
             logger.debug("Web search skipped (disabled or no API key)")
