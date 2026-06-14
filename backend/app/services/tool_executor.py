@@ -6,12 +6,17 @@ and returns a plain dict matching the corresponding ToolResult model.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 from app.services.retrieval import RetrievalService
+from app.services.sql_validator import SqlValidationError
+from app.services.text_to_sql import TextToSqlService
 
 logger = logging.getLogger(__name__)
+
+_sql_service = TextToSqlService()
 
 
 async def execute_search_documents(
@@ -34,25 +39,56 @@ async def execute_search_documents(
 async def execute_query_database(
     question: str,
     sql: str,
-    **_kwargs: Any,
+    user_jwt: str,
 ) -> dict[str, Any]:
     """Execute a read-only SQL query against metadata views.
 
-    Placeholder until Track A wires up the text-to-SQL pipeline.
+    Returns a SqlToolResult-shaped dict with an extra ``content`` field
+    containing a JSON-formatted string for the LLM tool message.
     """
-    raise NotImplementedError(
-        "query_database is not yet implemented — waiting for Track A SQL executor"
-    )
+    try:
+        result = await _sql_service.execute(sql, user_jwt)
+    except SqlValidationError as exc:
+        logger.warning("SQL validation failed: %s", exc)
+        return {
+            "sql": sql,
+            "rows": [],
+            "row_count": 0,
+            "error": str(exc),
+            "content": f"SQL validation error: {exc}",
+        }
+    except Exception as exc:
+        logger.exception("SQL execution failed")
+        return {
+            "sql": sql,
+            "rows": [],
+            "row_count": 0,
+            "error": str(exc),
+            "content": f"Database query error: {exc}",
+        }
+
+    result["content"] = json.dumps(result["rows"], default=str)
+    return result
 
 
 async def execute_web_search(
     query: str,
     **_kwargs: Any,
 ) -> dict[str, Any]:
-    """Search the public web via Tavily.
+    """Search the public web via Tavily and return a WebToolResult-shaped dict."""
+    from app.services.web_search import TavilyWebSearchService
 
-    Placeholder until Track B wires up the web-search integration.
-    """
-    raise NotImplementedError(
-        "web_search is not yet implemented — waiting for Track B web executor"
-    )
+    svc = TavilyWebSearchService()
+    raw_results = await svc.search(query)
+
+    formatted: list[dict[str, str]] = []
+    for item in raw_results:
+        formatted.append(
+            {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "content": item.get("content", ""),
+            }
+        )
+
+    return {"results": formatted}

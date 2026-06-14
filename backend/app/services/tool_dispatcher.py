@@ -38,8 +38,16 @@ class ToolDispatcher:
         self,
         tool_name: str,
         args: dict[str, Any],
+        *,
+        user_jwt: str | None = None,
     ) -> dict[str, Any]:
         """Execute *tool_name* with *args* and return a result dict.
+
+        Parameters
+        ----------
+        user_jwt
+            Required for ``query_database`` (RLS binding). Ignored by
+            other tools.
 
         Raises
         ------
@@ -61,9 +69,14 @@ class ToolDispatcher:
                     "query_database is disabled — "
                     "set TEXT_TO_SQL_ENABLED=true and DATABASE_URL to activate"
                 )
+            if not user_jwt:
+                raise ValueError(
+                    "query_database requires a user JWT for RLS binding"
+                )
             return await execute_query_database(
                 question=args["question"],
                 sql=args["sql"],
+                user_jwt=user_jwt,
             )
 
         if tool_name == "web_search":
