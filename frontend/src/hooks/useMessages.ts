@@ -3,14 +3,24 @@ import { useCallback, useEffect, useState } from "react";
 import type { SourceCitation } from "@/components/chat/SourceCitations";
 import { supabase } from "@/lib/supabase";
 
+export type ToolMeta = {
+  name: string;
+  status: "running" | "ok" | "error";
+  sql?: string;
+  web_urls?: string[];
+};
+
+export type MessageMetadata = {
+  sources?: SourceCitation[];
+  tools?: ToolMeta[];
+};
+
 export type Message = {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   created_at: string;
-  metadata?: {
-    sources?: SourceCitation[];
-  };
+  metadata?: MessageMetadata;
 };
 
 export function useMessages(threadId: string | null) {
@@ -53,15 +63,22 @@ export function useMessages(threadId: string | null) {
   }, []);
 
   const updateLastAssistant = useCallback(
-    (content: string, sources?: SourceCitation[]) => {
+    (
+      content: string,
+      patch?: { sources?: SourceCitation[]; tools?: ToolMeta[] },
+    ) => {
       setMessages((prev) => {
         const next = [...prev];
         const last = next[next.length - 1];
         if (last?.role === "assistant") {
+          const merged: MessageMetadata = { ...last.metadata };
+          if (patch?.sources) merged.sources = patch.sources;
+          if (patch?.tools) merged.tools = patch.tools;
+
           next[next.length - 1] = {
             ...last,
             content,
-            metadata: sources ? { sources } : last.metadata,
+            metadata: merged,
           };
         }
         return next;

@@ -50,11 +50,15 @@ export function ChatPage() {
         content,
         onSources: (incoming) => {
           sources = incoming;
-          flushSync(() => updateLastAssistant(assistantText, sources));
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources }),
+          );
         },
         onToken: (token) => {
           assistantText += token;
-          flushSync(() => updateLastAssistant(assistantText, sources));
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources }),
+          );
         },
         onDone: async () => {
           await loadMessages();
