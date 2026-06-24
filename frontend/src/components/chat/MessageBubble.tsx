@@ -25,7 +25,9 @@ export function MessageBubble({
   isThinking,
 }: MessageBubbleProps) {
   const isUser = role === "user";
-  const showThinking = !isUser && isThinking && !content;
+  const hasActiveTools = tools?.some((t) => t.status === "running") ?? false;
+  const showThinking =
+    !isUser && isThinking && !content && !hasActiveTools;
 
   if (isUser) {
     return (

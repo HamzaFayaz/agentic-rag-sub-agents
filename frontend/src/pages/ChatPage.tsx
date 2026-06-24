@@ -122,11 +122,20 @@ export function ChatPage() {
             if (result.passes != null) finished.passes = result.passes;
             if (result.filename) finished.filename = result.filename;
           }
-          tools = tools.map((tool) =>
-            tool.name === payload.tool && tool.status === "running"
-              ? { ...finished, filename: finished.filename ?? tool.filename }
-              : tool,
+          const endIdx = tools.findIndex(
+            (tool) =>
+              tool.name === payload.tool && tool.status === "running",
           );
+          if (endIdx !== -1) {
+            tools = tools.map((tool, i) =>
+              i === endIdx
+                ? {
+                    ...finished,
+                    filename: finished.filename ?? tool.filename,
+                  }
+                : tool,
+            );
+          }
           flushSync(() =>
             updateLastAssistant(assistantText, { sources, tools }),
           );
