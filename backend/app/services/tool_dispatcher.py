@@ -12,7 +12,9 @@ from typing import Any
 
 from app.config import Settings
 from app.services.retrieval import RetrievalService
+from app.services.sub_agent import ProgressCallback
 from app.services.tool_executor import (
+    execute_analyze_document,
     execute_query_database,
     execute_search_documents,
     execute_web_search,
@@ -20,7 +22,9 @@ from app.services.tool_executor import (
 
 logger = logging.getLogger(__name__)
 
-KNOWN_TOOLS = frozenset({"search_documents", "query_database", "web_search"})
+KNOWN_TOOLS = frozenset(
+    {"search_documents", "query_database", "web_search", "analyze_document"}
+)
 
 
 class ToolDispatcher:
@@ -40,6 +44,7 @@ class ToolDispatcher:
         args: dict[str, Any],
         *,
         user_jwt: str | None = None,
+        on_subagent_progress: ProgressCallback | None = None,
     ) -> dict[str, Any]:
         """Execute *tool_name* with *args* and return a result dict.
 
@@ -86,5 +91,22 @@ class ToolDispatcher:
                     "set WEB_SEARCH_ENABLED=true and TAVILY_API_KEY to activate"
                 )
             return await execute_web_search(query=args["query"])
+
+        if tool_name == "analyze_document":
+            if not self._settings.sub_agent_active():
+                raise ValueError(
+                    "analyze_document is disabled — "
+                    "set SUB_AGENT_ENABLED=true to activate"
+                )
+            if not user_jwt:
+                raise ValueError(
+                    "analyze_document requires a user JWT for document access"
+                )
+            return await execute_analyze_document(
+                filename=args["filename"],
+                task=args["task"],
+                user_jwt=user_jwt,
+                on_progress=on_subagent_progress,
+            )
 
         raise ValueError(f"Unhandled tool: {tool_name}")

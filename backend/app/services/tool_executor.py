@@ -8,15 +8,20 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
+from uuid import UUID
 
 from app.services.retrieval import RetrievalService
 from app.services.sql_validator import SqlValidationError
+from app.services.sub_agent import DocumentAnalystService, ProgressCallback
+from app.services.supabase_client import SupabaseRepository
 from app.services.text_to_sql import TextToSqlService
 
 logger = logging.getLogger(__name__)
 
 _sql_service = TextToSqlService()
+_analyst_service = DocumentAnalystService()
 
 
 async def execute_search_documents(
@@ -92,3 +97,71 @@ async def execute_web_search(
         )
 
     return {"results": formatted}
+
+
+async def execute_analyze_document(
+    filename: str,
+    task: str,
+    user_jwt: str,
+    *,
+    on_progress: ProgressCallback | None = None,
+) -> dict[str, Any]:
+    """Resolve filename and run the document analyst sub-agent."""
+    repo = SupabaseRepository(user_jwt)
+    matches = repo.find_documents_by_filename(filename)
+
+    if not matches:
+        available = repo.list_ready_filenames()
+        hint = ", ".join(available[:10]) if available else "(no ready documents)"
+        return {
+            "error": (
+                f"Document '{filename}' not found. Available files: {hint}"
+            ),
+            "report": "",
+            "mode": "single_pass",
+            "passes": 0,
+            "document_id": "",
+            "filename": filename,
+        }
+
+    if len(matches) > 1:
+        names = ", ".join(m["filename"] for m in matches)
+        return {
+            "error": f"Ambiguous filename '{filename}'. Matches: {names}",
+            "report": "",
+            "mode": "single_pass",
+            "passes": 0,
+            "document_id": "",
+            "filename": filename,
+        }
+
+    doc = matches[0]
+    if doc.get("status") != "ready":
+        return {
+            "error": f"Document '{doc['filename']}' is not ready (status: {doc.get('status')}).",
+            "report": "",
+            "mode": "single_pass",
+            "passes": 0,
+            "document_id": str(doc.get("id", "")),
+            "filename": doc.get("filename", filename),
+        }
+
+    try:
+        report = await _analyst_service.analyze(
+            document_id=UUID(str(doc["id"])),
+            filename=str(doc["filename"]),
+            task=task,
+            user_jwt=user_jwt,
+            on_progress=on_progress,
+        )
+        return report.model_dump()
+    except Exception as exc:
+        logger.exception("Document analyst failed for %s", filename)
+        return {
+            "error": str(exc),
+            "report": "",
+            "mode": "single_pass",
+            "passes": 0,
+            "document_id": str(doc.get("id", "")),
+            "filename": doc.get("filename", filename),
+        }
