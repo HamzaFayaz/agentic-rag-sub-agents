@@ -57,12 +57,12 @@ export function ChatInput({
       onSubmit={handleSubmit}
       className={cn(
         "w-full",
-        centered ? "px-0" : "border-t border-border bg-surface p-4",
+        centered ? "px-0" : "bg-background px-4 pb-5 pt-2",
       )}
     >
       <div
         className={cn(
-          "mx-auto flex max-w-3xl items-end gap-2 rounded-3xl border border-border bg-input px-4 py-3 shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-ring/40",
+          "mx-auto flex max-w-3xl items-end gap-2 rounded-[1.75rem] border border-border/80 bg-muted/30 px-4 py-3 shadow-sm backdrop-blur-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow-md dark:bg-muted/20",
           centered && "shadow-md",
         )}
       >
@@ -77,7 +77,7 @@ export function ChatInput({
             streaming ? "Generating response…" : "Ask anything…"
           }
           disabled={streaming}
-          className="max-h-[200px] min-h-[24px] flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+          className="max-h-[200px] min-h-[24px] flex-1 resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
         />
         {streaming ? (
           <Button
@@ -94,7 +94,7 @@ export function ChatInput({
             type="submit"
             size="sm"
             disabled={!canSend}
-            className="h-9 w-9 shrink-0 rounded-full p-0"
+            className="h-9 w-9 shrink-0 rounded-full p-0 disabled:opacity-40"
             aria-label="Send message"
           >
             <ArrowUp className="size-4" />
@@ -102,7 +102,7 @@ export function ChatInput({
         )}
       </div>
       {!centered && (
-        <p className="mx-auto mt-2 max-w-3xl text-center text-xs text-muted-foreground">
+        <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-muted-foreground/70">
           Enter to send · Shift+Enter for new line
         </p>
       )}

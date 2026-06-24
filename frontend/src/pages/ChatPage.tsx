@@ -237,7 +237,7 @@ export function ChatPage() {
           </div>
         </div>
       ) : activeThreadId ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col bg-background">
           <MessageList
             messages={messages}
             loading={messagesLoading}
