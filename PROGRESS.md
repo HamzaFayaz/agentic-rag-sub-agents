@@ -114,7 +114,7 @@ Chat   → hybrid (M6) → rerank (M6) → parent context → top-K → LLM
 
 ---
 
-## Module 7 — Multi-Tool Agent — **complete**
+## Module 7 — Multi-Tool Agent — **complete & validated** *(branch `module-7-multi-tool-agent`)*
 
 Replace always-on RAG with an LLM tool-calling loop. Three tools:
 
@@ -135,5 +135,23 @@ Replace always-on RAG with an LLM tool-calling loop. Three tools:
 - [x] D — SSE `tool_start`/`tool_end`, attribution UI (SQL, web URLs, tool activity)
 - [x] E — OpenAI tool-calling client, ChatService agent loop, chat route SSE
 - [x] F — LangSmith tool spans, README / PROGRESS / release notes
+
+**Validation** *(plan 6.module-7 — passed 2026-06-14; may re-run E2E later)*
+
+- [x] Backend unit tests: 39/39 pytest (`sql_validator`, `text_to_sql`, `tool_dispatcher`, `web_search`, `openai_tools`, `tracing`)
+- [x] Frontend: `tsc --noEmit` clean
+- [x] Dev smoke: backend starts after `pip install -r requirements.txt` (Module 7 deps: `sqlparse`, `asyncpg`)
+- [x] Documents page loads prior uploads when backend is running
+- [x] `DATABASE_URL` wired for Text-to-SQL (direct Postgres connection)
+
+**Re-test later** *(E2E — run when env or migrations change, or before GitHub release tag)*
+
+- [ ] Doc content question → `search_documents` + source chips
+- [ ] Library stats → `query_database` + SQL shown (`DATABASE_URL` + migration `007`)
+- [ ] Web question → `web_search` + URL chips (`TAVILY_API_KEY`)
+- [ ] SQL boundary: validator rejects `content` / `document_chunks` / `DELETE`
+- [ ] RLS smoke test (User A / User B)
+
+**Flow doc:** [Discussion/module-7-tool-routing-flow.md](Discussion/module-7-tool-routing-flow.md)
 
 Plan: [.agent/plans/6.module-7-multi-tool-agent.md](.agent/plans/6.module-7-multi-tool-agent.md)

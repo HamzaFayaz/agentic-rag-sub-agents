@@ -2,6 +2,8 @@
 
 *Chat-style notes from our conversations. Not a plan doc — just what we talked through.*
 
+**Module 7 status:** Complete & validated (2026-06-14). See `PROGRESS.md` and `Discussion/module-7-tool-routing-flow.md`.
+
 ---
 
 ## Module 7 — what it is (two parts)

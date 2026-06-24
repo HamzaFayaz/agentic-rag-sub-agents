@@ -2,7 +2,7 @@
 
 A production-oriented **Retrieval-Augmented Generation (RAG)** application with threaded chat and manual document ingestion. Upload your files, index them into pgvector, and chat with grounded answers backed by source citations.
 
-Built as a modular masterclass codebase — **Modules 1–6 are complete** ([release v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3)). **Module 7** adds a multi-tool agent (RAG + Text-to-SQL + web search). Configuration is via environment variables; there is no admin UI.
+Built as a modular masterclass codebase — **Modules 1–7 are complete & validated** ([v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) for Modules 1–6; [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) for Module 7). Module 7 adds a multi-tool agent (RAG + Text-to-SQL + web search). Configuration is via environment variables; there is no admin UI.
 
 ---
 
@@ -312,7 +312,7 @@ agentic-rag-sub-agents/
 | 4 — Metadata extraction | Complete | LLM structured metadata per document |
 | 5 — Multi-format support | Complete | Docling parsing, structure-aware chunking |
 | 6 — Hybrid search + reranking | Complete | Vector + FTS, RRF, Cohere rerank |
-| 7 — Multi-tool agent | Complete | Tool-calling loop, Text-to-SQL, Tavily web search |
+| 7 — Multi-tool agent | Complete & validated | Tool-calling loop, Text-to-SQL, Tavily web search |
 | 8 — Sub-agents | Planned | Isolated context, nested tool display |
 
 See `PROGRESS.md` for the detailed checklist.
@@ -326,6 +326,7 @@ See `PROGRESS.md` for the detailed checklist.
 | [v1](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v1) | Modules 1 & 2 — App shell + RAG |
 | [v2](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v2) | Module 3 — Record manager + UI polish |
 | [v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) | Modules 4–6 — Metadata, multi-format, hybrid retrieval + LangSmith |
+| [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) | Module 7 — Multi-tool agent (RAG + SQL + web search) |
 
 ---
 
@@ -333,5 +334,7 @@ See `PROGRESS.md` for the detailed checklist.
 
 - [`PRD.md`](PRD.md) — full product scope and module roadmap
 - [`PROGRESS.md`](PROGRESS.md) — implementation checklist
+- [`Discussion/module-7-tool-routing-flow.md`](Discussion/module-7-tool-routing-flow.md) — Module 7 agent flow (diagram + file map)
 - [`cursor.md`](cursor.md) — agent / development conventions
-- [`.github/RELEASE_v3.md`](.github/RELEASE_v3.md) — latest release notes
+- [`.github/RELEASE_v4.md`](.github/RELEASE_v4.md) — Module 7 release notes
+- [`.github/RELEASE_v3.md`](.github/RELEASE_v3.md) — Modules 4–6 release notes
