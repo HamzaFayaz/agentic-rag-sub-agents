@@ -306,6 +306,43 @@ class SupabaseRepository:
         )
         return result.count or 0
 
+    def list_document_chunks(self, document_id: UUID) -> list[dict[str, Any]]:
+        """Return embeddable chunks (parents + standalone), excluding child splits.
+
+        Child chunks duplicate parent section text in smaller pieces; the analyst
+        stitches parent/standalone rows ordered by chunk_index for full-document reads.
+        """
+        result = (
+            self._client.table("document_chunks")
+            .select("content, chunk_index, token_count, chunk_level")
+            .eq("document_id", str(document_id))
+            .is_("parent_id", "null")
+            .order("chunk_index", desc=False)
+            .execute()
+        )
+        return result.data or []
+
+    def find_documents_by_filename(self, filename: str) -> list[dict[str, Any]]:
+        """Case-insensitive filename lookup scoped by RLS to the current user."""
+        result = (
+            self._client.table("documents")
+            .select("id, filename, total_token_count, status")
+            .ilike("filename", filename)
+            .execute()
+        )
+        return result.data or []
+
+    def list_ready_filenames(self) -> list[str]:
+        """Return ready document filenames for the current user (RLS-scoped)."""
+        result = (
+            self._client.table("documents")
+            .select("filename")
+            .eq("status", "ready")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return [str(row["filename"]) for row in (result.data or [])]
+
     @staticmethod
     def build_storage_path(user_id: str, document_id: UUID, filename: str) -> str:
         safe_name = filename.replace("/", "_").replace("\\", "_")
