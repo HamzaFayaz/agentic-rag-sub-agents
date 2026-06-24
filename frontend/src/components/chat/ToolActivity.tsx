@@ -13,14 +13,53 @@ const statusIcon: Record<ToolMeta["status"], React.ReactNode> = {
   error: <XCircle className="size-3" aria-hidden />,
 };
 
+function formatMode(mode: string): string {
+  return mode === "single_pass" ? "single pass" : "multi pass";
+}
+
+function toolLabel(tool: ToolMeta): string {
+  if (tool.name !== "analyze_document") {
+    return tool.name;
+  }
+
+  const file = tool.filename ?? "document";
+
+  if (tool.status === "running") {
+    if (tool.progress_pass != null && tool.progress_total != null) {
+      return `analyzing ${file} (${tool.progress_pass}/${tool.progress_total})`;
+    }
+    return `analyzing ${file}`;
+  }
+
+  if (tool.status === "ok" && tool.mode) {
+    return `analyzed ${file} (${formatMode(tool.mode)})`;
+  }
+
+  if (tool.filename) {
+    return `analyzed ${file}`;
+  }
+
+  return tool.name;
+}
+
+function visibleTools(tools: ToolMeta[]): ToolMeta[] {
+  let analyzeCount = 0;
+  return tools.filter((tool) => {
+    if (tool.name !== "analyze_document") return true;
+    analyzeCount += 1;
+    return analyzeCount <= 2;
+  });
+}
+
 export function ToolActivity({ tools }: ToolActivityProps) {
-  if (tools.length === 0) return null;
+  const chips = visibleTools(tools);
+  if (chips.length === 0) return null;
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
-      {tools.map((tool, i) => (
+      {chips.map((tool, i) => (
         <span
-          key={`${tool.name}-${i}`}
+          key={i}
           className={cn(
             "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs",
             tool.status === "running" && "bg-muted text-muted-foreground",
@@ -29,7 +68,7 @@ export function ToolActivity({ tools }: ToolActivityProps) {
           )}
         >
           {statusIcon[tool.status]}
-          {tool.name}
+          {toolLabel(tool)}
         </span>
       ))}
     </div>
