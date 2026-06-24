@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -20,20 +21,26 @@ from app.services.tracing import (
 _AGENT_ROUTING_PROMPT = (
     "You have tools to answer questions about the user's document library.\n"
     "- search_documents: use for questions about document prose or content "
-    "(policies, CV skills, handbook sections).\n"
+    "(policies, CV skills, handbook sections) when you need targeted excerpts "
+    "or pinpoint facts.\n"
+    "- analyze_document: use for whole-document summaries, deep reads, or "
+    "comparing specific files by filename. NOT for pinpoint facts — use "
+    "search_documents for targeted excerpts.\n"
     "- query_database: use for counts, lists, filters, and aggregates over "
     "library metadata (how many documents, largest file, documents by type).\n"
     "- web_search: use when the user asks for online, current, or external "
     "information (e.g. latest news, search the web).\n"
-    "Pick the right tool before answering. For document text, always use "
-    "search_documents. For library statistics, use query_database. For explicit "
-    "web or current-events requests, use web_search directly without RAG or SQL."
+    "Pick the right tool before answering. For pinpoint facts in document "
+    "text, use search_documents. For whole-document analysis or compare tasks, "
+    "use analyze_document. For library statistics, use query_database. For "
+    "explicit web or current-events requests, use web_search directly without "
+    "RAG or SQL."
 )
 
 
 @dataclass
 class ChatStreamEvent:
-    event: Literal["tool_start", "tool_end", "sources", "token"]
+    event: Literal["tool_start", "tool_end", "sources", "token", "subagent_progress"]
     data: dict[str, Any]
 
 
@@ -84,6 +91,11 @@ def _format_tool_result(tool_name: str, result: dict[str, Any]) -> str:
             lines.append(f"- [{title}]({url}): {snippet}")
         return "\n".join(lines) if lines else "No web results found."
 
+    if tool_name == "analyze_document":
+        if result.get("error"):
+            return str(result["error"])
+        return str(result.get("report") or "")
+
     return str(result)
 
 
@@ -101,6 +113,11 @@ def _tool_meta_from_result(
             for item in result.get("results") or []
             if item.get("url")
         ]
+    if tool_name == "analyze_document":
+        meta["mode"] = result.get("mode")
+        meta["passes"] = result.get("passes")
+        meta["document_id"] = result.get("document_id")
+        meta["filename"] = result.get("filename")
     return meta
 
 
@@ -162,6 +179,7 @@ class ChatService:
         tools = build_available_tools(self._settings)
         state = ChatTurnState()
         assistant_parts: list[str] = []
+        analyze_document_count = 0
 
         try:
             answered = False
@@ -190,18 +208,94 @@ class ChatService:
                         data={"tool": call.name, "args": call.arguments},
                     )
 
-                    try:
-                        result = await self._dispatcher.dispatch(
-                            call.name,
-                            call.arguments,
-                            user_jwt=user_jwt,
+                    if (
+                        call.name == "analyze_document"
+                        and analyze_document_count
+                        >= self._settings.sub_agent_max_per_turn
+                    ):
+                        max_analyses = self._settings.sub_agent_max_per_turn
+                        result = {
+                            "error": (
+                                f"Maximum {max_analyses} document analyses per "
+                                "turn — pick the two most relevant documents"
+                            ),
+                        }
+                        tool_status: Literal["ok", "error"] = "error"
+                    else:
+                        if call.name == "analyze_document":
+                            analyze_document_count += 1
+
+                        progress_queue: asyncio.Queue[dict[str, Any]] | None = (
+                            asyncio.Queue()
+                            if call.name == "analyze_document"
+                            else None
                         )
-                        tool_status: Literal["ok", "error"] = (
-                            "error" if result.get("error") else "ok"
-                        )
-                    except ValueError as exc:
-                        result = {"error": str(exc)}
-                        tool_status = "error"
+
+                        def on_subagent_progress(
+                            pass_num: int,
+                            total_passes: int,
+                            mode: str,
+                            *,
+                            _queue: asyncio.Queue[dict[str, Any]] | None = (
+                                progress_queue
+                            ),
+                            _filename: str = str(
+                                call.arguments.get("filename", "")
+                            ),
+                        ) -> None:
+                            if _queue is not None:
+                                _queue.put_nowait(
+                                    {
+                                        "pass": pass_num,
+                                        "total_passes": total_passes,
+                                        "mode": mode,
+                                        "filename": _filename,
+                                    }
+                                )
+
+                        try:
+                            dispatch_task = asyncio.create_task(
+                                self._dispatcher.dispatch(
+                                    call.name,
+                                    call.arguments,
+                                    user_jwt=user_jwt,
+                                    on_subagent_progress=(
+                                        on_subagent_progress
+                                        if call.name == "analyze_document"
+                                        else None
+                                    ),
+                                )
+                            )
+
+                            while not dispatch_task.done():
+                                if progress_queue is not None:
+                                    while True:
+                                        try:
+                                            progress_data = (
+                                                progress_queue.get_nowait()
+                                            )
+                                        except asyncio.QueueEmpty:
+                                            break
+                                        yield ChatStreamEvent(
+                                            event="subagent_progress",
+                                            data=progress_data,
+                                        )
+                                await asyncio.sleep(0)
+
+                            if progress_queue is not None:
+                                while not progress_queue.empty():
+                                    yield ChatStreamEvent(
+                                        event="subagent_progress",
+                                        data=progress_queue.get_nowait(),
+                                    )
+
+                            result = dispatch_task.result()
+                            tool_status = (
+                                "error" if result.get("error") else "ok"
+                            )
+                        except ValueError as exc:
+                            result = {"error": str(exc)}
+                            tool_status = "error"
 
                     if call.name == "search_documents":
                         raw_sources = result.get("sources") or []
