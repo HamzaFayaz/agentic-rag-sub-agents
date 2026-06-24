@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.services.tool_dispatcher import KNOWN_TOOLS, ToolDispatcher
 
 
-def _make_settings(*, sql_active: bool = False, web_active: bool = False) -> MagicMock:
+def _make_settings(
+    *,
+    sql_active: bool = False,
+    web_active: bool = False,
+    sub_agent_active: bool = True,
+) -> MagicMock:
     """Return a mock Settings with controllable feature gates."""
     s = MagicMock()
     s.text_to_sql_active.return_value = sql_active
     s.web_search_active.return_value = web_active
+    s.sub_agent_active.return_value = sub_agent_active
     return s
 
 
@@ -113,5 +119,67 @@ async def test_unknown_tool_raises_value_error():
 
 
 def test_known_tools_constant():
-    """KNOWN_TOOLS contains exactly the three expected tool names."""
-    assert KNOWN_TOOLS == {"search_documents", "query_database", "web_search"}
+    """KNOWN_TOOLS contains all registered tool names."""
+    assert KNOWN_TOOLS == {
+        "search_documents",
+        "query_database",
+        "web_search",
+        "analyze_document",
+    }
+
+
+# -- dispatch: analyze_document disabled ---------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_analyze_document_disabled():
+    """analyze_document raises ValueError when sub_agent_active() is False."""
+    dispatcher = ToolDispatcher(
+        settings=_make_settings(sub_agent_active=False),
+        retrieval_service=_make_retrieval(),
+    )
+
+    with pytest.raises(ValueError, match="analyze_document is disabled"):
+        await dispatcher.dispatch(
+            "analyze_document",
+            {"filename": "doc.pdf", "task": "summarize"},
+            user_jwt="jwt",
+        )
+
+
+# -- dispatch: analyze_document enabled ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_dispatch_analyze_document_enabled():
+    """analyze_document routes to execute_analyze_document when enabled."""
+    dispatcher = ToolDispatcher(
+        settings=_make_settings(sub_agent_active=True),
+        retrieval_service=_make_retrieval(),
+    )
+    expected = {
+        "report": "Summary.",
+        "mode": "single_pass",
+        "passes": 1,
+        "document_id": "doc-1",
+        "filename": "handbook.pdf",
+    }
+
+    with patch(
+        "app.services.tool_dispatcher.execute_analyze_document",
+        new_callable=AsyncMock,
+        return_value=expected,
+    ) as mock_execute:
+        result = await dispatcher.dispatch(
+            "analyze_document",
+            {"filename": "handbook.pdf", "task": "summarize"},
+            user_jwt="user-jwt",
+        )
+
+    mock_execute.assert_awaited_once_with(
+        filename="handbook.pdf",
+        task="summarize",
+        user_jwt="user-jwt",
+        on_progress=None,
+    )
+    assert result == expected
