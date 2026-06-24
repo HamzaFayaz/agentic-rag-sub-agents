@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     sql_query_timeout_sec: int = 5
     agent_max_tool_iterations: int = 3
 
+    # Module 8: document analyst sub-agent
+    sub_agent_enabled: bool = True
+    sub_agent_max_per_turn: int = 2
+    sub_agent_context_token_budget: int = 80_000
+    sub_agent_internal_max_passes: int = 8
+    sub_agent_output_max_tokens: int = 2000
+    sub_agent_model: str = "gpt-4o-mini"
+
     system_prompt: str = Field(
         default=(
             "You are a helpful assistant. Answer clearly and concisely using the "
@@ -73,6 +81,9 @@ class Settings(BaseSettings):
 
     def web_search_active(self) -> bool:
         return bool(self.web_search_enabled and self.tavily_api_key)
+
+    def sub_agent_active(self) -> bool:
+        return bool(self.sub_agent_enabled)
 
     def build_rag_system_prompt(self, context_blocks: list[str]) -> str:
         if not context_blocks:
