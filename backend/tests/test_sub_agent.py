@@ -13,6 +13,8 @@ from app.services.sub_agent import (
     batch_chunks,
     fits_budget,
 )
+from app.services.chat import _group_tool_calls
+from app.services.openai_client import ParsedToolCall
 from app.services.tool_executor import execute_analyze_document
 
 
@@ -155,6 +157,19 @@ async def test_analyze_large_doc_multi_pass_bounded():
 
 
 # -- per-turn cap (mirrors ChatService logic) ----------------------------------
+
+
+def test_group_tool_calls_batches_consecutive_analyze():
+    """Compare flows group back-to-back analyze_document calls for parallel run."""
+    calls = [
+        ParsedToolCall("1", "analyze_document", {"filename": "a.pdf", "task": "x"}),
+        ParsedToolCall("2", "analyze_document", {"filename": "b.pdf", "task": "x"}),
+        ParsedToolCall("3", "search_documents", {"query": "facts"}),
+    ]
+    groups = _group_tool_calls(calls)
+    assert len(groups) == 2
+    assert [c.id for c in groups[0]] == ["1", "2"]
+    assert groups[1][0].name == "search_documents"
 
 
 def test_analyze_document_per_turn_cap_logic():

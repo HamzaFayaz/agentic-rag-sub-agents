@@ -124,7 +124,9 @@ export function ChatPage() {
           }
           const endIdx = tools.findIndex(
             (tool) =>
-              tool.name === payload.tool && tool.status === "running",
+              tool.name === payload.tool &&
+              tool.status === "running" &&
+              (!result?.filename || tool.filename === result.filename),
           );
           if (endIdx !== -1) {
             tools = tools.map((tool, i) =>

@@ -145,8 +145,9 @@ def _analyze_document_tool() -> dict[str, Any]:
             "description": (
                 "Deep-read or summarize a whole uploaded document by filename. "
                 "Use for full-document summaries, comprehensive reviews, or when "
-                "comparing two specific files. NOT for pinpoint facts — use "
-                "search_documents for targeted excerpts."
+                "comparing two specific files — call this tool once per file in "
+                "the same step so analyses run in parallel. NOT for pinpoint "
+                "facts; use search_documents for targeted excerpts."
             ),
             "parameters": {
                 "type": "object",

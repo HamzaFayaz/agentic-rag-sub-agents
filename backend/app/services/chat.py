@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from app.config import get_settings
-from app.services.openai_client import OpenAIClient, parse_tool_calls
+from app.services.openai_client import OpenAIClient, ParsedToolCall, parse_tool_calls
 from app.services.retrieval import RetrievalService, RetrievedSource
 from app.services.supabase_client import SupabaseRepository
 from app.services.tool_contracts import build_available_tools
@@ -25,7 +25,9 @@ _AGENT_ROUTING_PROMPT = (
     "or pinpoint facts.\n"
     "- analyze_document: use for whole-document summaries, deep reads, or "
     "comparing specific files by filename. NOT for pinpoint facts — use "
-    "search_documents for targeted excerpts.\n"
+    "search_documents for targeted excerpts. When comparing two documents, "
+    "call analyze_document for BOTH files in the same tool-calling step "
+    "(they run in parallel).\n"
     "- query_database: use for counts, lists, filters, and aggregates over "
     "library metadata (how many documents, largest file, documents by type).\n"
     "- web_search: use when the user asks for online, current, or external "
@@ -48,6 +50,42 @@ class ChatStreamEvent:
 class ChatTurnState:
     sources: list[RetrievedSource] = field(default_factory=list)
     tools_meta: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class _ToolCallOutcome:
+    call: ParsedToolCall
+    result: dict[str, Any]
+    tool_status: Literal["ok", "error"]
+
+
+def _group_tool_calls(tool_calls: list[ParsedToolCall]) -> list[list[ParsedToolCall]]:
+    """Group consecutive analyze_document calls so compare runs can parallelize."""
+    groups: list[list[ParsedToolCall]] = []
+    index = 0
+    while index < len(tool_calls):
+        if tool_calls[index].name == "analyze_document":
+            group: list[ParsedToolCall] = []
+            while (
+                index < len(tool_calls)
+                and tool_calls[index].name == "analyze_document"
+            ):
+                group.append(tool_calls[index])
+                index += 1
+            groups.append(group)
+        else:
+            groups.append([tool_calls[index]])
+            index += 1
+    return groups
+
+
+def _analyze_cap_error(max_analyses: int) -> dict[str, Any]:
+    return {
+        "error": (
+            f"Maximum {max_analyses} document analyses per turn — "
+            "pick the two most relevant documents"
+        ),
+    }
 
 
 def _assistant_message_dict(message: Any) -> dict[str, Any]:
@@ -152,6 +190,256 @@ class ChatService:
         messages.append({"role": "user", "content": user_content})
         return messages
 
+    async def _stream_single_tool(
+        self,
+        call: ParsedToolCall,
+        user_jwt: str,
+        analyze_count_ref: list[int],
+        outcomes: list[_ToolCallOutcome],
+    ) -> AsyncIterator[ChatStreamEvent]:
+        """Dispatch one tool call, yielding progress events while it runs."""
+        max_analyses = self._settings.sub_agent_max_per_turn
+
+        if (
+            call.name == "analyze_document"
+            and analyze_count_ref[0] >= max_analyses
+        ):
+            result = _analyze_cap_error(max_analyses)
+            outcomes.append(
+                _ToolCallOutcome(call, result, "error"),
+            )
+            yield ChatStreamEvent(
+                event="tool_end",
+                data={
+                    "tool": call.name,
+                    "status": "error",
+                    "result": result,
+                    "error": result["error"],
+                },
+            )
+            return
+
+        if call.name == "analyze_document":
+            analyze_count_ref[0] += 1
+
+        progress_queue: asyncio.Queue[dict[str, Any]] | None = (
+            asyncio.Queue() if call.name == "analyze_document" else None
+        )
+        filename = str(call.arguments.get("filename", ""))
+
+        def on_subagent_progress(
+            pass_num: int,
+            total_passes: int,
+            mode: str,
+        ) -> None:
+            if progress_queue is not None:
+                progress_queue.put_nowait(
+                    {
+                        "pass": pass_num,
+                        "total_passes": total_passes,
+                        "mode": mode,
+                        "filename": filename,
+                    }
+                )
+
+        try:
+            dispatch_task = asyncio.create_task(
+                self._dispatcher.dispatch(
+                    call.name,
+                    call.arguments,
+                    user_jwt=user_jwt,
+                    on_subagent_progress=(
+                        on_subagent_progress
+                        if call.name == "analyze_document"
+                        else None
+                    ),
+                )
+            )
+
+            while not dispatch_task.done():
+                if progress_queue is not None:
+                    while True:
+                        try:
+                            progress_data = progress_queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                        yield ChatStreamEvent(
+                            event="subagent_progress",
+                            data=progress_data,
+                        )
+                await asyncio.sleep(0)
+
+            if progress_queue is not None:
+                while not progress_queue.empty():
+                    yield ChatStreamEvent(
+                        event="subagent_progress",
+                        data=progress_queue.get_nowait(),
+                    )
+
+            result = dispatch_task.result()
+            tool_status: Literal["ok", "error"] = (
+                "error" if result.get("error") else "ok"
+            )
+        except ValueError as exc:
+            result = {"error": str(exc)}
+            tool_status = "error"
+
+        outcomes.append(_ToolCallOutcome(call, result, tool_status))
+        yield ChatStreamEvent(
+            event="tool_end",
+            data={
+                "tool": call.name,
+                "status": tool_status,
+                "result": result,
+                "error": result.get("error"),
+            },
+        )
+
+    async def _stream_parallel_analyze(
+        self,
+        calls: list[ParsedToolCall],
+        user_jwt: str,
+        analyze_count_ref: list[int],
+        outcomes: list[_ToolCallOutcome],
+    ) -> AsyncIterator[ChatStreamEvent]:
+        """Run consecutive analyze_document calls in parallel."""
+        max_analyses = self._settings.sub_agent_max_per_turn
+        tasks: list[asyncio.Task[dict[str, Any]]] = []
+        queues: list[asyncio.Queue[dict[str, Any]]] = []
+        active_calls: list[ParsedToolCall] = []
+
+        for call in calls:
+            if analyze_count_ref[0] >= max_analyses:
+                result = _analyze_cap_error(max_analyses)
+                outcomes.append(_ToolCallOutcome(call, result, "error"))
+                yield ChatStreamEvent(
+                    event="tool_end",
+                    data={
+                        "tool": call.name,
+                        "status": "error",
+                        "result": result,
+                        "error": result["error"],
+                    },
+                )
+                continue
+
+            analyze_count_ref[0] += 1
+            progress_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            queues.append(progress_queue)
+            active_calls.append(call)
+            filename = str(call.arguments.get("filename", ""))
+
+            def on_subagent_progress(
+                pass_num: int,
+                total_passes: int,
+                mode: str,
+                *,
+                _queue: asyncio.Queue[dict[str, Any]] = progress_queue,
+                _filename: str = filename,
+            ) -> None:
+                _queue.put_nowait(
+                    {
+                        "pass": pass_num,
+                        "total_passes": total_passes,
+                        "mode": mode,
+                        "filename": _filename,
+                    }
+                )
+
+            tasks.append(
+                asyncio.create_task(
+                    self._dispatcher.dispatch(
+                        call.name,
+                        call.arguments,
+                        user_jwt=user_jwt,
+                        on_subagent_progress=on_subagent_progress,
+                    )
+                )
+            )
+
+        while tasks and any(not task.done() for task in tasks):
+            for progress_queue in queues:
+                while True:
+                    try:
+                        progress_data = progress_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    yield ChatStreamEvent(
+                        event="subagent_progress",
+                        data=progress_data,
+                    )
+            await asyncio.sleep(0)
+
+        for progress_queue in queues:
+            while not progress_queue.empty():
+                yield ChatStreamEvent(
+                    event="subagent_progress",
+                    data=progress_queue.get_nowait(),
+                )
+
+        for task, call in zip(tasks, active_calls):
+            try:
+                result = task.result()
+                tool_status: Literal["ok", "error"] = (
+                    "error" if result.get("error") else "ok"
+                )
+            except Exception as exc:
+                result = {"error": str(exc)}
+                tool_status = "error"
+
+            outcomes.append(_ToolCallOutcome(call, result, tool_status))
+            yield ChatStreamEvent(
+                event="tool_end",
+                data={
+                    "tool": call.name,
+                    "status": tool_status,
+                    "result": result,
+                    "error": result.get("error"),
+                },
+            )
+
+    def _apply_tool_outcome(
+        self,
+        call: ParsedToolCall,
+        result: dict[str, Any],
+        tool_status: Literal["ok", "error"],
+        state: ChatTurnState,
+        messages: list[dict[str, Any]],
+    ) -> list[ChatStreamEvent]:
+        events: list[ChatStreamEvent] = []
+
+        if call.name == "search_documents":
+            raw_sources = result.get("sources") or []
+            for item in raw_sources:
+                state.sources.append(
+                    RetrievedSource(
+                        document_id=str(item.get("document_id", "")),
+                        filename=str(item.get("filename", "")),
+                        snippet=str(item.get("snippet", "")),
+                        similarity=float(item.get("similarity", 0.0)),
+                    )
+                )
+            if state.sources:
+                events.append(
+                    ChatStreamEvent(
+                        event="sources",
+                        data={"sources": [s.to_dict() for s in state.sources]},
+                    )
+                )
+
+        state.tools_meta.append(
+            _tool_meta_from_result(call.name, tool_status, result)
+        )
+
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": _format_tool_result(call.name, result),
+            }
+        )
+        return events
+
     @traceable_if_enabled(
         name="chat_turn",
         run_type="chain",
@@ -202,143 +490,47 @@ class ChatService:
 
                 messages.append(_assistant_message_dict(assistant_message))
 
-                for call in tool_calls:
-                    yield ChatStreamEvent(
-                        event="tool_start",
-                        data={"tool": call.name, "args": call.arguments},
-                    )
-
-                    if (
-                        call.name == "analyze_document"
-                        and analyze_document_count
-                        >= self._settings.sub_agent_max_per_turn
-                    ):
-                        max_analyses = self._settings.sub_agent_max_per_turn
-                        result = {
-                            "error": (
-                                f"Maximum {max_analyses} document analyses per "
-                                "turn — pick the two most relevant documents"
-                            ),
-                        }
-                        tool_status: Literal["ok", "error"] = "error"
-                    else:
-                        if call.name == "analyze_document":
-                            analyze_document_count += 1
-
-                        progress_queue: asyncio.Queue[dict[str, Any]] | None = (
-                            asyncio.Queue()
-                            if call.name == "analyze_document"
-                            else None
+                count_ref = [analyze_document_count]
+                for group in _group_tool_calls(tool_calls):
+                    for call in group:
+                        yield ChatStreamEvent(
+                            event="tool_start",
+                            data={"tool": call.name, "args": call.arguments},
                         )
 
-                        def on_subagent_progress(
-                            pass_num: int,
-                            total_passes: int,
-                            mode: str,
-                            *,
-                            _queue: asyncio.Queue[dict[str, Any]] | None = (
-                                progress_queue
-                            ),
-                            _filename: str = str(
-                                call.arguments.get("filename", "")
-                            ),
-                        ) -> None:
-                            if _queue is not None:
-                                _queue.put_nowait(
-                                    {
-                                        "pass": pass_num,
-                                        "total_passes": total_passes,
-                                        "mode": mode,
-                                        "filename": _filename,
-                                    }
-                                )
+                    batch_outcomes: list[_ToolCallOutcome] = []
+                    if (
+                        len(group) >= 2
+                        and group[0].name == "analyze_document"
+                    ):
+                        async for stream_event in self._stream_parallel_analyze(
+                            group,
+                            user_jwt,
+                            count_ref,
+                            batch_outcomes,
+                        ):
+                            yield stream_event
+                    else:
+                        for call in group:
+                            async for stream_event in self._stream_single_tool(
+                                call,
+                                user_jwt,
+                                count_ref,
+                                batch_outcomes,
+                            ):
+                                yield stream_event
 
-                        try:
-                            dispatch_task = asyncio.create_task(
-                                self._dispatcher.dispatch(
-                                    call.name,
-                                    call.arguments,
-                                    user_jwt=user_jwt,
-                                    on_subagent_progress=(
-                                        on_subagent_progress
-                                        if call.name == "analyze_document"
-                                        else None
-                                    ),
-                                )
-                            )
+                    for outcome in batch_outcomes:
+                        for stream_event in self._apply_tool_outcome(
+                            outcome.call,
+                            outcome.result,
+                            outcome.tool_status,
+                            state,
+                            messages,
+                        ):
+                            yield stream_event
 
-                            while not dispatch_task.done():
-                                if progress_queue is not None:
-                                    while True:
-                                        try:
-                                            progress_data = (
-                                                progress_queue.get_nowait()
-                                            )
-                                        except asyncio.QueueEmpty:
-                                            break
-                                        yield ChatStreamEvent(
-                                            event="subagent_progress",
-                                            data=progress_data,
-                                        )
-                                await asyncio.sleep(0)
-
-                            if progress_queue is not None:
-                                while not progress_queue.empty():
-                                    yield ChatStreamEvent(
-                                        event="subagent_progress",
-                                        data=progress_queue.get_nowait(),
-                                    )
-
-                            result = dispatch_task.result()
-                            tool_status = (
-                                "error" if result.get("error") else "ok"
-                            )
-                        except ValueError as exc:
-                            result = {"error": str(exc)}
-                            tool_status = "error"
-
-                    if call.name == "search_documents":
-                        raw_sources = result.get("sources") or []
-                        for item in raw_sources:
-                            state.sources.append(
-                                RetrievedSource(
-                                    document_id=str(item.get("document_id", "")),
-                                    filename=str(item.get("filename", "")),
-                                    snippet=str(item.get("snippet", "")),
-                                    similarity=float(item.get("similarity", 0.0)),
-                                )
-                            )
-                        if state.sources:
-                            yield ChatStreamEvent(
-                                event="sources",
-                                data={
-                                    "sources": [
-                                        s.to_dict() for s in state.sources
-                                    ]
-                                },
-                            )
-
-                    state.tools_meta.append(
-                        _tool_meta_from_result(call.name, tool_status, result)
-                    )
-
-                    yield ChatStreamEvent(
-                        event="tool_end",
-                        data={
-                            "tool": call.name,
-                            "status": tool_status,
-                            "result": result,
-                            "error": result.get("error"),
-                        },
-                    )
-
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": call.id,
-                            "content": _format_tool_result(call.name, result),
-                        }
-                    )
+                analyze_document_count = count_ref[0]
 
             if not answered:
                 async for token in self._openai.stream_chat_final(messages):
