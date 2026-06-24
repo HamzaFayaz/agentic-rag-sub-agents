@@ -15,7 +15,9 @@ set total_token_count = coalesce(
 )
 where d.total_token_count is null;
 
--- Expose total_token_count in the metadata stats view for SQL/agent reads
+-- Expose total_token_count in the metadata stats view for SQL/agent reads.
+-- New columns must be appended last — CREATE OR REPLACE VIEW cannot reorder
+-- existing columns (Postgres treats a mid-list insert as a rename).
 create or replace view public.v_user_document_stats
 with (security_invoker = true)
 as
@@ -27,8 +29,8 @@ as
     d.byte_size,
     d.created_at,
     d.metadata,
-    d.total_token_count,
-    coalesce(c.chunk_count, 0) as chunk_count
+    coalesce(c.chunk_count, 0) as chunk_count,
+    d.total_token_count
   from public.documents d
   left join (
     select document_id, count(*)::int as chunk_count
