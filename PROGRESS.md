@@ -168,6 +168,7 @@ One new main-agent tool: `analyze_document`. The sub-agent has isolated context,
 | `DocumentAnalystService` | Single pass if doc fits budget; else map-reduce batches |
 | Per-turn cap | `SUB_AGENT_MAX_PER_TURN=2` — block 3rd call in one message |
 | RLS | Filename lookup scoped to current user's JWT |
+| Parallel compare | Back-to-back `analyze_document` calls in one LLM step run concurrently |
 
 ### Checklist
 
@@ -177,13 +178,15 @@ One new main-agent tool: `analyze_document`. The sub-agent has isolated context,
 - [x] C — Tool contract, executor/dispatcher, chat loop + per-turn cap
 - [x] D — `subagent_progress` SSE, frontend metadata + tool activity UI
 - [x] E — LangSmith `document_analyze` spans, unit tests, README / PROGRESS / release notes
+- [x] Ship polish — markdown chat UI, sub-agent step labels, parallel compare dispatch
 
-**Validation** *(plan 7.module-8 — Track E)*
+**Validation** *(plan 7.module-8 — Track E + ship)*
 
 - [x] Backend unit tests: `test_sub_agent.py`, updated `test_tool_dispatcher.py`
 - [x] Budget routing: single vs multi pass; batch boundaries; pass cap
 - [x] Per-turn cap logic; filename-not-found; RLS empty lookup
 - [x] `analyze_document` gated when `SUB_AGENT_ENABLED=false`
+- [x] Parallel grouping for consecutive `analyze_document` tool calls
 
 **Re-test later** *(E2E — run when env or migrations change, or before GitHub release tag)*
 

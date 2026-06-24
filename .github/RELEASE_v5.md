@@ -1,6 +1,6 @@
 # Release v5 — Module 8: Document Analyst Sub-Agent
 
-**Status:** Complete & validated (2026-06-25). Tagged as **v5** on branch `module-8-sub-agents`.
+**Status:** Complete & validated (2026-06-25). Tagged as **v5** on `main` (from branch `module-8-sub-agents`).
 
 ## Summary
 
@@ -37,7 +37,9 @@ Internal map batches are capped by `SUB_AGENT_INTERNAL_MAX_PASSES` (default 8). 
 
 - `tool_start` / `tool_end` for `analyze_document` (same as other tools)
 - `subagent_progress` events: `{pass, total_passes, mode, filename}`
-- Tool activity chip: e.g. `analyzing handbook.pdf (3/5)` — one chip per document, max two for compare
+- ChatGPT-style vertical step list (e.g. `Calling sub-agent to read and analyze handbook.pdf`)
+- Assistant replies render **markdown** (headings, lists, bold)
+- **Parallel compare:** when the model calls `analyze_document` twice in one step, both sub-agents run concurrently
 
 ## Configuration
 
@@ -54,6 +56,8 @@ See `.env.example`:
 
 Apply `supabase/migrations/008_document_token_count.sql` in the Supabase SQL Editor.
 
+**Note:** `total_token_count` must be appended **after** `chunk_count` in `v_user_document_stats` — Postgres `CREATE OR REPLACE VIEW` cannot insert columns mid-list.
+
 ## LangSmith
 
 New spans: `document_analyze` (parent) and `document_analyze_pass` (per internal LLM call).
@@ -62,8 +66,10 @@ New spans: `document_analyze` (parent) and `document_analyze_pass` (per internal
 
 | Check | Result |
 |-------|--------|
-| `test_sub_agent.py` — budget, batching, analyst, cap, RLS | Pass |
+| `test_sub_agent.py` — budget, batching, analyst, cap, RLS, parallel grouping | Pass |
 | `test_tool_dispatcher.py` — `analyze_document` gate + dispatch | Pass |
+| Full backend `pytest` | 52 passed |
+| Frontend TypeScript (`tsc --noEmit`) | Pass |
 | Docs: README, PROGRESS, RELEASE_v5 | Updated |
 
 **Manual E2E** (re-test when migrations or sub-agent config change):
