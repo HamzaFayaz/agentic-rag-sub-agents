@@ -51,6 +51,11 @@ async def chat_stream(
                         "event": "tool_end",
                         "data": json.dumps(stream_event.data),
                     }
+                elif stream_event.event == "subagent_progress":
+                    yield {
+                        "event": "subagent_progress",
+                        "data": json.dumps(stream_event.data),
+                    }
                 elif stream_event.event == "token":
                     yield {
                         "event": "token",
