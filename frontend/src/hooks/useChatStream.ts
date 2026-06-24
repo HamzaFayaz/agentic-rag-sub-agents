@@ -15,6 +15,13 @@ export type ToolEndPayload = {
   error?: string;
 };
 
+export type SubAgentProgressPayload = {
+  pass: number;
+  total_passes: number;
+  mode: string;
+  filename?: string;
+};
+
 type StreamOptions = {
   accessToken: string;
   threadId: string;
@@ -22,6 +29,7 @@ type StreamOptions = {
   onSources?: (sources: SourceCitation[]) => void;
   onToolStart?: (payload: ToolStartPayload) => void;
   onToolEnd?: (payload: ToolEndPayload) => void;
+  onSubAgentProgress?: (payload: SubAgentProgressPayload) => void;
   onToken: (token: string) => void;
   onDone: () => void;
   onError: (message: string) => void;
@@ -33,7 +41,16 @@ function normalizeSseBuffer(raw: string): string {
 
 function parseSseBlock(
   block: string,
-  handlers: Pick<StreamOptions, "onSources" | "onToolStart" | "onToolEnd" | "onToken" | "onDone" | "onError">,
+  handlers: Pick<
+    StreamOptions,
+    | "onSources"
+    | "onToolStart"
+    | "onToolEnd"
+    | "onSubAgentProgress"
+    | "onToken"
+    | "onDone"
+    | "onError"
+  >,
 ): void {
   const trimmed = block.trim();
   if (!trimmed || trimmed.startsWith(":")) return;
@@ -82,6 +99,15 @@ function parseSseBlock(
     return;
   }
 
+  if (event === "subagent_progress" && handlers.onSubAgentProgress) {
+    try {
+      handlers.onSubAgentProgress(JSON.parse(data) as SubAgentProgressPayload);
+    } catch {
+      handlers.onError(`Invalid subagent_progress data: ${data.slice(0, 80)}`);
+    }
+    return;
+  }
+
   let payload: {
     content?: string;
     detail?: string | unknown;
@@ -110,7 +136,16 @@ function parseSseBlock(
 
 function consumeSseBuffer(
   buffer: string,
-  handlers: Pick<StreamOptions, "onSources" | "onToolStart" | "onToolEnd" | "onToken" | "onDone" | "onError">,
+  handlers: Pick<
+    StreamOptions,
+    | "onSources"
+    | "onToolStart"
+    | "onToolEnd"
+    | "onSubAgentProgress"
+    | "onToken"
+    | "onDone"
+    | "onError"
+  >,
 ): string {
   const normalized = normalizeSseBuffer(buffer);
   const blocks = normalized.split("\n\n");
@@ -139,6 +174,7 @@ export function useChatStream() {
       onSources,
       onToolStart,
       onToolEnd,
+      onSubAgentProgress,
       onToken,
       onDone,
       onError,
@@ -161,6 +197,7 @@ export function useChatStream() {
       onSources,
       onToolStart,
       onToolEnd,
+      onSubAgentProgress,
       onToken,
       onDone: finishOnce,
       onError: (message: string) => {

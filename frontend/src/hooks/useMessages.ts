@@ -8,6 +8,11 @@ export type ToolMeta = {
   status: "running" | "ok" | "error";
   sql?: string;
   web_urls?: string[];
+  mode?: string;
+  passes?: number;
+  filename?: string;
+  progress_pass?: number;
+  progress_total?: number;
 };
 
 export type MessageMetadata = {
