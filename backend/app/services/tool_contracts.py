@@ -17,7 +17,7 @@ ALLOWLIST_VIEWS: tuple[str, ...] = (
 SQL_SCHEMA_HINT = (
     "Query ONLY these views and columns:\n"
     "  v_user_document_stats → id, filename, status, mime_type, byte_size, "
-    "created_at, metadata, chunk_count\n"
+    "created_at, metadata, chunk_count, total_token_count\n"
     "  v_user_chunk_meta → id, document_id, chunk_index, section_title, "
     "heading_level, chunk_level, token_count\n"
     "  v_user_chat_stats → thread_count, message_count, latest_thread_at, "
@@ -52,6 +52,14 @@ class SqlToolResult(BaseModel):
 
 class WebToolResult(BaseModel):
     results: list[dict[str, str]] = Field(default_factory=list)
+
+
+class AnalystToolResult(BaseModel):
+    report: str
+    mode: Literal["single_pass", "multi_pass"]
+    passes: int
+    document_id: str
+    filename: str
 
 
 def _search_documents_tool() -> dict[str, Any]:
@@ -129,6 +137,38 @@ def _web_search_tool() -> dict[str, Any]:
     }
 
 
+def _analyze_document_tool() -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": "analyze_document",
+            "description": (
+                "Deep-read or summarize a whole uploaded document by filename. "
+                "Use for full-document summaries, comprehensive reviews, or when "
+                "comparing two specific files. NOT for pinpoint facts — use "
+                "search_documents for targeted excerpts."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "Exact filename of the document in the user's library.",
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": (
+                            "What to extract or summarize from the document "
+                            "(e.g. summarize key policies, compare terms)."
+                        ),
+                    },
+                },
+                "required": ["filename", "task"],
+            },
+        },
+    }
+
+
 def build_available_tools(settings: Settings) -> list[dict[str, Any]]:
     """Return OpenAI tool definitions for enabled tools only."""
     tools: list[dict[str, Any]] = [_search_documents_tool()]
@@ -138,5 +178,8 @@ def build_available_tools(settings: Settings) -> list[dict[str, Any]]:
 
     if settings.web_search_active():
         tools.append(_web_search_tool())
+
+    if settings.sub_agent_active():
+        tools.append(_analyze_document_tool())
 
     return tools
