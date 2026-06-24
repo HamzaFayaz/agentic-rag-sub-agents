@@ -257,6 +257,29 @@ def process_web_search_outputs(output: Any) -> dict[str, Any]:
     }
 
 
+def process_document_analyze_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "document_id": str(inputs.get("document_id", "")),
+        "filename": inputs.get("filename", ""),
+        "task": content_for_trace(str(inputs.get("task") or "")),
+    }
+
+
+def process_document_analyze_outputs(output: Any) -> dict[str, Any]:
+    if hasattr(output, "model_dump"):
+        data = output.model_dump()
+    elif isinstance(output, dict):
+        data = output
+    else:
+        return {}
+    return {
+        "mode": data.get("mode"),
+        "passes": data.get("passes"),
+        "filename": data.get("filename"),
+        "report_length": len(str(data.get("report") or "")),
+    }
+
+
 @traceable_if_enabled(
     name="build_rag_prompt",
     run_type="chain",

@@ -2,7 +2,7 @@
 
 A production-oriented **Retrieval-Augmented Generation (RAG)** application with threaded chat and manual document ingestion. Upload your files, index them into pgvector, and chat with grounded answers backed by source citations.
 
-Built as a modular masterclass codebase — **Modules 1–7 are complete & validated** ([v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) for Modules 1–6; [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) for Module 7). Module 7 adds a multi-tool agent (RAG + Text-to-SQL + web search). Configuration is via environment variables; there is no admin UI.
+Built as a modular masterclass codebase — **Modules 1–8 are complete & validated** ([v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) for Modules 1–6; [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) for Module 7; [v5](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v5) for Module 8). Module 7 adds a multi-tool agent (RAG + Text-to-SQL + web search). Module 8 adds a document analyst sub-agent for whole-document reads. Configuration is via environment variables; there is no admin UI.
 
 ---
 
@@ -16,7 +16,8 @@ Built as a modular masterclass codebase — **Modules 1–7 are complete & valid
 - Retrieval-augmented answers with inline source citations
 - **Text-to-SQL** — read-only queries on safe metadata views (counts, lists, filters)
 - **Web search** — Tavily fallback for online/current questions (optional)
-- Tool activity UI: SQL attribution, web URL chips, doc source citations
+- **Document analyst sub-agent** — `analyze_document` for whole-doc summaries, deep reads, and compare (token-aware single/multi pass)
+- Tool activity UI: SQL attribution, web URL chips, doc source citations, sub-agent progress chips
 - ChatGPT-style UI: centered welcome input, canvas-style assistant replies, dark mode toggle
 - Stateless Chat Completions API — you own memory, not the LLM provider
 
@@ -71,13 +72,15 @@ Upload → parse (Docling) → metadata.parser → chunk (structure-aware)
        → metadata.llm (gpt-4o-mini) → embed children → pgvector → ready
 ```
 
-### Chat / retrieval pipeline (Module 7)
+### Chat / retrieval pipeline (Module 7–8)
 
 ```text
 User message → LLM tool loop (max 3 iterations)
-             → search_documents | query_database | web_search
+             → search_documents | query_database | web_search | analyze_document
              → stream final answer → save metadata (sources, tools, SQL)
 ```
+
+**Sub-agent routing (`analyze_document`):** If the document's total tokens fit `SUB_AGENT_CONTEXT_TOKEN_BUDGET`, the analyst runs a single LLM pass over stitched chunks. Larger documents use internal map-reduce batches (capped by `SUB_AGENT_INTERNAL_MAX_PASSES`), returning a compact report (~2k tokens) to the main agent. At most `SUB_AGENT_MAX_PER_TURN` (default 2) analyses per chat turn — enough for compare-two-files, not unbounded fan-out.
 
 **RAG vs SQL boundary:** `document_chunks.content` is RAG-only. Row counts, lists, and filters over `documents` metadata use SQL on safe views (`v_user_document_stats`, etc.) — never chunk text or embeddings.
 
@@ -132,6 +135,7 @@ Run in the Supabase **SQL Editor**, in order:
 | 5 | `005_chunk_structure.sql` | Section / parent–child chunk columns |
 | 6 | `006_hybrid_search.sql` | Full-text search + keyword RPC |
 | 7 | `007_text_to_sql_views.sql` | Safe read-only views for Text-to-SQL |
+| 8 | `008_document_token_count.sql` | `total_token_count` column + backfill for sub-agent budgeting |
 
 Confirm `threads`, `messages`, `documents`, and `document_chunks` exist with RLS enabled.
 
@@ -196,6 +200,7 @@ All variables are documented in `.env.example`. Key groups:
 | Metadata | `METADATA_EXTRACTION_ENABLED`, `METADATA_MODEL` | LLM extraction per doc |
 | Hybrid / rerank | `COHERE_API_KEY`, `RERANK_*`, `HYBRID_CANDIDATE_K` | Rerank is fail-open |
 | Multi-tool agent | `TEXT_TO_SQL_*`, `WEB_SEARCH_*`, `TAVILY_*`, `DATABASE_URL`, `AGENT_MAX_TOOL_ITERATIONS` | SQL + web are fail-open |
+| Sub-agent | `SUB_AGENT_ENABLED`, `SUB_AGENT_MAX_PER_TURN`, `SUB_AGENT_CONTEXT_TOKEN_BUDGET`, `SUB_AGENT_INTERNAL_MAX_PASSES`, `SUB_AGENT_OUTPUT_MAX_TOKENS`, `SUB_AGENT_MODEL` | Whole-doc analyst; omit when disabled |
 | LangSmith | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING`, `LANGSMITH_LOG_CHUNK_TEXT` | Optional tracing |
 | Frontend | `VITE_SUPABASE_*`, `VITE_API_URL` | Leave `VITE_API_URL` empty to use Vite proxy |
 
@@ -212,7 +217,7 @@ If SSE streaming appears all-at-once, set `VITE_API_URL=http://localhost:8000` i
 | `GET` | `/api/documents` | List current user's documents (includes `content_hash`, `metadata`) |
 | `POST` | `/api/documents/upload` | Multipart upload; response includes `ingest_action` |
 | `DELETE` | `/api/documents/{id}` | Delete document, chunks, and storage object |
-| `POST` | `/api/chat/stream` | SSE chat — `tool_start` / `tool_end`, `sources`, `token` events |
+| `POST` | `/api/chat/stream` | SSE chat — `tool_start` / `tool_end`, `subagent_progress`, `sources`, `token` events |
 
 ### Supported upload formats
 
@@ -259,6 +264,8 @@ Set `LANGSMITH_LOG_CHUNK_TEXT=true` to log full chunk bodies (default: 200-char 
 | `rag_retrieve` | `search_documents` tool | Filenames, scores, chunk ids, snippets |
 | `query_database` | SQL tool | SQL preview, row count |
 | `web_search` | Web tool | Query, result URLs |
+| `document_analyze` | `analyze_document` tool | Filename, mode, pass count |
+| `document_analyze_pass` | Each internal analyst LLM call | Pass label (map/reduce) |
 | `hybrid_rrf` | Hybrid merge | Vector/keyword counts, top candidate ids |
 | `cohere_rerank` | Rerank step | Top indices and relevance scores |
 | `build_rag_prompt` | Prompt assembly | Chunk count, system prompt length |
@@ -280,7 +287,8 @@ agentic-rag-sub-agents/
 │   ├── config.py            Settings (Pydantic)
 │   ├── routes/              chat.py, documents.py
 │   └── services/            chunking, embedding, hybrid, reranker,
-│                            ingestion, metadata, parsing, retrieval, tracing
+│                            ingestion, metadata, parsing, retrieval,
+│                            sub_agent, tracing, tool_dispatcher
 ├── frontend/src/
 │   ├── pages/               Chat, Documents, Login, Signup
 │   ├── components/          chat, documents, auth, layout, ui
@@ -313,7 +321,7 @@ agentic-rag-sub-agents/
 | 5 — Multi-format support | Complete | Docling parsing, structure-aware chunking |
 | 6 — Hybrid search + reranking | Complete | Vector + FTS, RRF, Cohere rerank |
 | 7 — Multi-tool agent | Complete & validated | Tool-calling loop, Text-to-SQL, Tavily web search |
-| 8 — Sub-agents | Planned | Isolated context, nested tool display |
+| 8 — Sub-agents | Complete & validated | `analyze_document` analyst, token-aware routing, per-turn cap |
 
 See `PROGRESS.md` for the detailed checklist.
 
@@ -327,6 +335,7 @@ See `PROGRESS.md` for the detailed checklist.
 | [v2](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v2) | Module 3 — Record manager + UI polish |
 | [v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) | Modules 4–6 — Metadata, multi-format, hybrid retrieval + LangSmith |
 | [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) | Module 7 — Multi-tool agent (RAG + SQL + web search) |
+| [v5](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v5) | Module 8 — Document analyst sub-agent |
 
 ---
 
@@ -335,6 +344,8 @@ See `PROGRESS.md` for the detailed checklist.
 - [`PRD.md`](PRD.md) — full product scope and module roadmap
 - [`PROGRESS.md`](PROGRESS.md) — implementation checklist
 - [`Discussion/module-7-tool-routing-flow.md`](Discussion/module-7-tool-routing-flow.md) — Module 7 agent flow (diagram + file map)
+- [`Discussion/modules-7-8.md`](Discussion/modules-7-8.md) — Module 8 sub-agent design
 - [`cursor.md`](cursor.md) — agent / development conventions
+- [`.github/RELEASE_v5.md`](.github/RELEASE_v5.md) — Module 8 release notes
 - [`.github/RELEASE_v4.md`](.github/RELEASE_v4.md) — Module 7 release notes
 - [`.github/RELEASE_v3.md`](.github/RELEASE_v3.md) — Modules 4–6 release notes

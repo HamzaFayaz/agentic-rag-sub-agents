@@ -155,3 +155,47 @@ Replace always-on RAG with an LLM tool-calling loop. Three tools:
 **Flow doc:** [Discussion/module-7-tool-routing-flow.md](Discussion/module-7-tool-routing-flow.md)
 
 Plan: [.agent/plans/6.module-7-multi-tool-agent.md](.agent/plans/6.module-7-multi-tool-agent.md)
+
+---
+
+## Module 8 — Sub-Agents (Document Analyst) — **complete & validated** *(branch `module-8-sub-agents`)*
+
+One new main-agent tool: `analyze_document`. The sub-agent has isolated context, token-aware single/multi pass routing, and returns a compact report to the main agent. No nested sub-agents; max 2 analyses per turn.
+
+| Component | Role |
+|-----------|------|
+| `analyze_document` tool | Whole-doc summary, deep read, compare-by-filename |
+| `DocumentAnalystService` | Single pass if doc fits budget; else map-reduce batches |
+| Per-turn cap | `SUB_AGENT_MAX_PER_TURN=2` — block 3rd call in one message |
+| RLS | Filename lookup scoped to current user's JWT |
+| Parallel compare | Back-to-back `analyze_document` calls in one LLM step run concurrently |
+
+### Checklist
+
+- [x] P0 — Config flags, `.env.example`, `sub_agent_active()` helper
+- [x] A — `total_token_count` migration, ingest write, repo chunk/filename helpers
+- [x] B — `fits_budget`, `batch_chunks`, `DocumentAnalystService` (single + multi pass)
+- [x] C — Tool contract, executor/dispatcher, chat loop + per-turn cap
+- [x] D — `subagent_progress` SSE, frontend metadata + tool activity UI
+- [x] E — LangSmith `document_analyze` spans, unit tests, README / PROGRESS / release notes
+- [x] Ship polish — markdown chat UI, sub-agent step labels, parallel compare dispatch
+
+**Validation** *(plan 7.module-8 — Track E + ship)*
+
+- [x] Backend unit tests: `test_sub_agent.py`, updated `test_tool_dispatcher.py`
+- [x] Budget routing: single vs multi pass; batch boundaries; pass cap
+- [x] Per-turn cap logic; filename-not-found; RLS empty lookup
+- [x] `analyze_document` gated when `SUB_AGENT_ENABLED=false`
+- [x] Parallel grouping for consecutive `analyze_document` tool calls
+
+**Re-test later** *(E2E — run when env or migrations change, or before GitHub release tag)*
+
+- [ ] "Summarize my whole handbook" → 1 `analyze_document`, progress chip
+- [ ] "Compare contract A vs contract B" → 2 analyses, synthesized answer
+- [ ] Normal fact question → `search_documents` only
+- [ ] 3rd analyze call in one turn → blocked by per-turn cap
+- [ ] Unknown filename → helpful error listing available docs
+- [ ] RLS smoke test (User A / User B)
+- [ ] `SUB_AGENT_ENABLED=false` → tool omitted; chat still works
+
+Plan: [.agent/plans/7.module-8-sub-agents.md](.agent/plans/7.module-8-sub-agents.md)

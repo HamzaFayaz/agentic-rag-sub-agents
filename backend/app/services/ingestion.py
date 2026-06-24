@@ -233,6 +233,9 @@ class IngestionService:
         )
 
         embeddable_chunks = [c for c in chunks if c.get("chunk_level") != "parent"]
+        total_token_count = sum(
+            c.get("token_count") or 0 for c in embeddable_chunks
+        )
         embeddings: list[list[float]] = []
         if embeddable_chunks:
             embeddings = await self._embeddings.embed_texts(
@@ -268,6 +271,7 @@ class IngestionService:
                 "status": "ready",
                 "content_hash": digest,
                 "error_message": None,
+                "total_token_count": total_token_count,
             },
         )
 

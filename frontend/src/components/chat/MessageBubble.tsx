@@ -1,3 +1,4 @@
+import { MarkdownContent } from "@/components/chat/MarkdownContent";
 import { SqlAttribution } from "@/components/chat/SqlAttribution";
 import {
   SourceCitations,
@@ -25,7 +26,9 @@ export function MessageBubble({
   isThinking,
 }: MessageBubbleProps) {
   const isUser = role === "user";
-  const showThinking = !isUser && isThinking && !content;
+  const hasActiveTools = tools?.some((t) => t.status === "running") ?? false;
+  const showThinking =
+    !isUser && isThinking && !content && !hasActiveTools;
 
   if (isUser) {
     return (
@@ -49,13 +52,11 @@ export function MessageBubble({
   return (
     <div className="w-full py-1">
       {tools && tools.length > 0 && <ToolActivity tools={tools} />}
-      <div className="text-[15px] leading-7 text-foreground">
-        {showThinking ? (
-          <ThinkingIndicator />
-        ) : (
-          <div className="whitespace-pre-wrap">{content}</div>
-        )}
-      </div>
+      {showThinking ? (
+        <ThinkingIndicator />
+      ) : content ? (
+        <MarkdownContent content={content} />
+      ) : null}
       {!showThinking && sqlTool?.sql && <SqlAttribution sql={sqlTool.sql} />}
       {!showThinking && webUrls.length > 0 && (
         <WebSourceCitations urls={webUrls} />

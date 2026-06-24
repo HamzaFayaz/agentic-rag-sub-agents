@@ -57,10 +57,40 @@ export function ChatPage() {
           );
         },
         onToolStart: (payload) => {
-          tools = [
-            ...tools,
-            { name: payload.tool, status: "running" },
-          ];
+          const started: ToolMeta = { name: payload.tool, status: "running" };
+          if (payload.tool === "analyze_document") {
+            const filename = payload.args.filename;
+            if (typeof filename === "string") {
+              started.filename = filename;
+            }
+          }
+          tools = [...tools, started];
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources, tools }),
+          );
+        },
+        onSubAgentProgress: (payload) => {
+          const idx = tools.findIndex(
+            (tool) =>
+              tool.name === "analyze_document" &&
+              tool.status === "running" &&
+              (!payload.filename ||
+                !tool.filename ||
+                tool.filename === payload.filename),
+          );
+          if (idx === -1) return;
+
+          tools = tools.map((tool, i) =>
+            i === idx
+              ? {
+                  ...tool,
+                  filename: payload.filename ?? tool.filename,
+                  progress_pass: payload.pass,
+                  progress_total: payload.total_passes,
+                  mode: payload.mode,
+                }
+              : tool,
+          );
           flushSync(() =>
             updateLastAssistant(assistantText, { sources, tools }),
           );
@@ -70,6 +100,9 @@ export function ChatPage() {
             | {
                 sql?: string;
                 results?: Array<{ url?: string }>;
+                mode?: string;
+                passes?: number;
+                filename?: string;
               }
             | undefined;
           const finished: ToolMeta = {
@@ -84,11 +117,27 @@ export function ChatPage() {
               .map((item) => item.url)
               .filter((url): url is string => Boolean(url));
           }
-          tools = tools.map((tool) =>
-            tool.name === payload.tool && tool.status === "running"
-              ? finished
-              : tool,
+          if (payload.tool === "analyze_document" && result) {
+            if (result.mode) finished.mode = result.mode;
+            if (result.passes != null) finished.passes = result.passes;
+            if (result.filename) finished.filename = result.filename;
+          }
+          const endIdx = tools.findIndex(
+            (tool) =>
+              tool.name === payload.tool &&
+              tool.status === "running" &&
+              (!result?.filename || tool.filename === result.filename),
           );
+          if (endIdx !== -1) {
+            tools = tools.map((tool, i) =>
+              i === endIdx
+                ? {
+                    ...finished,
+                    filename: finished.filename ?? tool.filename,
+                  }
+                : tool,
+            );
+          }
           flushSync(() =>
             updateLastAssistant(assistantText, { sources, tools }),
           );
@@ -190,7 +239,7 @@ export function ChatPage() {
           </div>
         </div>
       ) : activeThreadId ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col bg-background">
           <MessageList
             messages={messages}
             loading={messagesLoading}
