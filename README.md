@@ -2,7 +2,7 @@
 
 A production-oriented **Retrieval-Augmented Generation (RAG)** application with threaded chat and manual document ingestion. Upload your files, index them into pgvector, and chat with grounded answers backed by source citations.
 
-Built as a modular masterclass codebase — **Modules 1–6 are complete** ([release v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3)). Configuration is via environment variables; there is no admin UI.
+Built as a modular masterclass codebase — **Modules 1–7 are complete & validated** ([v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) for Modules 1–6; [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) for Module 7). Module 7 adds a multi-tool agent (RAG + Text-to-SQL + web search). Configuration is via environment variables; there is no admin UI.
 
 ---
 
@@ -12,7 +12,11 @@ Built as a modular masterclass codebase — **Modules 1–6 are complete** ([rel
 
 - Threaded conversations with persistent history in Supabase
 - Streaming responses over SSE (Server-Sent Events)
+- **Multi-tool agent** — LLM chooses tools per question (not always-on RAG)
 - Retrieval-augmented answers with inline source citations
+- **Text-to-SQL** — read-only queries on safe metadata views (counts, lists, filters)
+- **Web search** — Tavily fallback for online/current questions (optional)
+- Tool activity UI: SQL attribution, web URL chips, doc source citations
 - ChatGPT-style UI: centered welcome input, canvas-style assistant replies, dark mode toggle
 - Stateless Chat Completions API — you own memory, not the LLM provider
 
@@ -67,12 +71,19 @@ Upload → parse (Docling) → metadata.parser → chunk (structure-aware)
        → metadata.llm (gpt-4o-mini) → embed children → pgvector → ready
 ```
 
-### Chat / retrieval pipeline
+### Chat / retrieval pipeline (Module 7)
 
 ```text
-User message → embed query → hybrid search (vector + FTS)
-             → RRF merge → Cohere rerank → parent context expansion
-             → build RAG prompt → stream Chat Completions → save + cite sources
+User message → LLM tool loop (max 3 iterations)
+             → search_documents | query_database | web_search
+             → stream final answer → save metadata (sources, tools, SQL)
+```
+
+**RAG vs SQL boundary:** `document_chunks.content` is RAG-only. Row counts, lists, and filters over `documents` metadata use SQL on safe views (`v_user_document_stats`, etc.) — never chunk text or embeddings.
+
+```text
+Legacy always-on RAG (Modules 2–6):
+User message → embed query → hybrid search → RRF → rerank → stream
 ```
 
 ```mermaid
@@ -104,7 +115,9 @@ flowchart LR
 1. [Supabase](https://supabase.com) project with **Email** auth enabled
 2. [OpenAI](https://platform.openai.com) API key — `gpt-4o-mini` + `text-embedding-3-small`
 3. **Optional:** [Cohere](https://cohere.com) API key for reranking (`COHERE_API_KEY`)
-4. **Optional:** [LangSmith](https://smith.langchain.com) — set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true`
+4. **Optional:** [Tavily](https://tavily.com) API key for web search (`TAVILY_API_KEY`)
+5. **Optional:** Postgres pooler URL (`DATABASE_URL`) for Text-to-SQL with RLS
+6. **Optional:** [LangSmith](https://smith.langchain.com) — set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true`
 
 ### 1. Database migrations
 
@@ -118,6 +131,7 @@ Run in the Supabase **SQL Editor**, in order:
 | 4 | `004_metadata.sql` | `documents.metadata` jsonb |
 | 5 | `005_chunk_structure.sql` | Section / parent–child chunk columns |
 | 6 | `006_hybrid_search.sql` | Full-text search + keyword RPC |
+| 7 | `007_text_to_sql_views.sql` | Safe read-only views for Text-to-SQL |
 
 Confirm `threads`, `messages`, `documents`, and `document_chunks` exist with RLS enabled.
 
@@ -181,6 +195,7 @@ All variables are documented in `.env.example`. Key groups:
 | Chunking | `MAX_CHUNK_TOKENS`, `MIN_HEADINGS_FOR_SECTION` | Structure-aware routing |
 | Metadata | `METADATA_EXTRACTION_ENABLED`, `METADATA_MODEL` | LLM extraction per doc |
 | Hybrid / rerank | `COHERE_API_KEY`, `RERANK_*`, `HYBRID_CANDIDATE_K` | Rerank is fail-open |
+| Multi-tool agent | `TEXT_TO_SQL_*`, `WEB_SEARCH_*`, `TAVILY_*`, `DATABASE_URL`, `AGENT_MAX_TOOL_ITERATIONS` | SQL + web are fail-open |
 | LangSmith | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING`, `LANGSMITH_LOG_CHUNK_TEXT` | Optional tracing |
 | Frontend | `VITE_SUPABASE_*`, `VITE_API_URL` | Leave `VITE_API_URL` empty to use Vite proxy |
 
@@ -197,7 +212,7 @@ If SSE streaming appears all-at-once, set `VITE_API_URL=http://localhost:8000` i
 | `GET` | `/api/documents` | List current user's documents (includes `content_hash`, `metadata`) |
 | `POST` | `/api/documents/upload` | Multipart upload; response includes `ingest_action` |
 | `DELETE` | `/api/documents/{id}` | Delete document, chunks, and storage object |
-| `POST` | `/api/chat/stream` | SSE chat — emits `sources` then `token` events |
+| `POST` | `/api/chat/stream` | SSE chat — `tool_start` / `tool_end`, `sources`, `token` events |
 
 ### Supported upload formats
 
@@ -240,8 +255,10 @@ Set `LANGSMITH_LOG_CHUNK_TEXT=true` to log full chunk bodies (default: 200-char 
 
 | Span | When | What you see |
 |------|------|--------------|
-| `chat_turn` | Each chat message | `thread_id`, query, `source_count`, `has_context` |
-| `rag_retrieve` | RAG lookup | Filenames, scores, chunk ids, snippets |
+| `chat_turn` | Each chat message | `thread_id`, query, tool usage |
+| `rag_retrieve` | `search_documents` tool | Filenames, scores, chunk ids, snippets |
+| `query_database` | SQL tool | SQL preview, row count |
+| `web_search` | Web tool | Query, result URLs |
 | `hybrid_rrf` | Hybrid merge | Vector/keyword counts, top candidate ids |
 | `cohere_rerank` | Rerank step | Top indices and relevance scores |
 | `build_rag_prompt` | Prompt assembly | Chunk count, system prompt length |
@@ -295,7 +312,7 @@ agentic-rag-sub-agents/
 | 4 — Metadata extraction | Complete | LLM structured metadata per document |
 | 5 — Multi-format support | Complete | Docling parsing, structure-aware chunking |
 | 6 — Hybrid search + reranking | Complete | Vector + FTS, RRF, Cohere rerank |
-| 7 — Additional tools | Planned | Text-to-SQL, web search fallback |
+| 7 — Multi-tool agent | Complete & validated | Tool-calling loop, Text-to-SQL, Tavily web search |
 | 8 — Sub-agents | Planned | Isolated context, nested tool display |
 
 See `PROGRESS.md` for the detailed checklist.
@@ -309,6 +326,7 @@ See `PROGRESS.md` for the detailed checklist.
 | [v1](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v1) | Modules 1 & 2 — App shell + RAG |
 | [v2](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v2) | Module 3 — Record manager + UI polish |
 | [v3](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v3) | Modules 4–6 — Metadata, multi-format, hybrid retrieval + LangSmith |
+| [v4](https://github.com/HamzaFayaz/agentic-rag-sub-agents/releases/tag/v4) | Module 7 — Multi-tool agent (RAG + SQL + web search) |
 
 ---
 
@@ -316,5 +334,7 @@ See `PROGRESS.md` for the detailed checklist.
 
 - [`PRD.md`](PRD.md) — full product scope and module roadmap
 - [`PROGRESS.md`](PROGRESS.md) — implementation checklist
+- [`Discussion/module-7-tool-routing-flow.md`](Discussion/module-7-tool-routing-flow.md) — Module 7 agent flow (diagram + file map)
 - [`cursor.md`](cursor.md) — agent / development conventions
-- [`.github/RELEASE_v3.md`](.github/RELEASE_v3.md) — latest release notes
+- [`.github/RELEASE_v4.md`](.github/RELEASE_v4.md) — Module 7 release notes
+- [`.github/RELEASE_v3.md`](.github/RELEASE_v3.md) — Modules 4–6 release notes

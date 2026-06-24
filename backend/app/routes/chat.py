@@ -30,20 +30,32 @@ async def chat_stream(
 
     async def event_generator():
         try:
-            stream_result = await service.prepare_stream(
-                body.thread_id, user_id, body.content
-            )
-            yield {
-                "event": "sources",
-                "data": json.dumps(
-                    [source.to_dict() for source in stream_result.sources]
-                ),
-            }
-            async for token in stream_result.token_iterator:
-                yield {
-                    "event": "token",
-                    "data": json.dumps({"content": token}),
-                }
+            async for stream_event in service.stream_turn(
+                body.thread_id,
+                user_id,
+                body.content,
+                user_jwt=access_token,
+            ):
+                if stream_event.event == "sources":
+                    yield {
+                        "event": "sources",
+                        "data": json.dumps(stream_event.data["sources"]),
+                    }
+                elif stream_event.event == "tool_start":
+                    yield {
+                        "event": "tool_start",
+                        "data": json.dumps(stream_event.data),
+                    }
+                elif stream_event.event == "tool_end":
+                    yield {
+                        "event": "tool_end",
+                        "data": json.dumps(stream_event.data),
+                    }
+                elif stream_event.event == "token":
+                    yield {
+                        "event": "token",
+                        "data": json.dumps(stream_event.data),
+                    }
             yield {"event": "done", "data": json.dumps({"status": "ok"})}
         except HTTPException as exc:
             yield {

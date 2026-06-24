@@ -43,3 +43,22 @@ def test_content_for_trace_full_mode():
     with patch.object(tracing.settings, "langsmith_log_chunk_text", True):
         long_text = "x" * 300
         assert tracing.content_for_trace(long_text) == long_text
+
+
+def test_query_database_trace_processors():
+    inputs = tracing.process_query_database_inputs({"sql": "SELECT 1"})
+    assert "sql_preview" in inputs
+    outputs = tracing.process_query_database_outputs(
+        {"row_count": 2, "sql": "SELECT 1 LIMIT 100"}
+    )
+    assert outputs["row_count"] == 2
+
+
+def test_web_search_trace_processors():
+    inputs = tracing.process_web_search_inputs({"query": "gdpr news"})
+    assert inputs["query"] == "gdpr news"
+    outputs = tracing.process_web_search_outputs(
+        [{"url": "https://example.com", "title": "Example"}]
+    )
+    assert outputs["result_count"] == 1
+    assert outputs["urls"] == ["https://example.com"]

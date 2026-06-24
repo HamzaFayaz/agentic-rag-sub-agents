@@ -3,11 +3,25 @@ import { useCallback, useRef, useState } from "react";
 import { apiBaseUrl } from "@/lib/api";
 import type { SourceCitation } from "@/components/chat/SourceCitations";
 
+export type ToolStartPayload = {
+  tool: string;
+  args: Record<string, unknown>;
+};
+
+export type ToolEndPayload = {
+  tool: string;
+  status: "ok" | "error";
+  result?: unknown;
+  error?: string;
+};
+
 type StreamOptions = {
   accessToken: string;
   threadId: string;
   content: string;
   onSources?: (sources: SourceCitation[]) => void;
+  onToolStart?: (payload: ToolStartPayload) => void;
+  onToolEnd?: (payload: ToolEndPayload) => void;
   onToken: (token: string) => void;
   onDone: () => void;
   onError: (message: string) => void;
@@ -19,7 +33,7 @@ function normalizeSseBuffer(raw: string): string {
 
 function parseSseBlock(
   block: string,
-  handlers: Pick<StreamOptions, "onSources" | "onToken" | "onDone" | "onError">,
+  handlers: Pick<StreamOptions, "onSources" | "onToolStart" | "onToolEnd" | "onToken" | "onDone" | "onError">,
 ): void {
   const trimmed = block.trim();
   if (!trimmed || trimmed.startsWith(":")) return;
@@ -46,6 +60,24 @@ function parseSseBlock(
       handlers.onSources(sources);
     } catch {
       handlers.onError(`Invalid sources data: ${data.slice(0, 80)}`);
+    }
+    return;
+  }
+
+  if (event === "tool_start" && handlers.onToolStart) {
+    try {
+      handlers.onToolStart(JSON.parse(data) as ToolStartPayload);
+    } catch {
+      handlers.onError(`Invalid tool_start data: ${data.slice(0, 80)}`);
+    }
+    return;
+  }
+
+  if (event === "tool_end" && handlers.onToolEnd) {
+    try {
+      handlers.onToolEnd(JSON.parse(data) as ToolEndPayload);
+    } catch {
+      handlers.onError(`Invalid tool_end data: ${data.slice(0, 80)}`);
     }
     return;
   }
@@ -78,7 +110,7 @@ function parseSseBlock(
 
 function consumeSseBuffer(
   buffer: string,
-  handlers: Pick<StreamOptions, "onSources" | "onToken" | "onDone" | "onError">,
+  handlers: Pick<StreamOptions, "onSources" | "onToolStart" | "onToolEnd" | "onToken" | "onDone" | "onError">,
 ): string {
   const normalized = normalizeSseBuffer(buffer);
   const blocks = normalized.split("\n\n");
@@ -105,6 +137,8 @@ export function useChatStream() {
       threadId,
       content,
       onSources,
+      onToolStart,
+      onToolEnd,
       onToken,
       onDone,
       onError,
@@ -125,6 +159,8 @@ export function useChatStream() {
 
     const handlers = {
       onSources,
+      onToolStart,
+      onToolEnd,
       onToken,
       onDone: finishOnce,
       onError: (message: string) => {

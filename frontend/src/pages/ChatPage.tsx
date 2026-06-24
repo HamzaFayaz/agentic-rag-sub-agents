@@ -10,6 +10,7 @@ import type { SourceCitation } from "@/components/chat/SourceCitations";
 import { useAuth } from "@/hooks/useAuth";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useDocuments } from "@/hooks/useDocuments";
+import type { ToolMeta } from "@/hooks/useMessages";
 import { useMessages } from "@/hooks/useMessages";
 import { useThreads } from "@/hooks/useThreads";
 
@@ -44,17 +45,59 @@ export function ChatPage() {
 
       let assistantText = "";
       let sources: SourceCitation[] = [];
+      let tools: ToolMeta[] = [];
       await streamMessage({
         accessToken: session.access_token,
         threadId,
         content,
         onSources: (incoming) => {
           sources = incoming;
-          flushSync(() => updateLastAssistant(assistantText, sources));
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources, tools }),
+          );
+        },
+        onToolStart: (payload) => {
+          tools = [
+            ...tools,
+            { name: payload.tool, status: "running" },
+          ];
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources, tools }),
+          );
+        },
+        onToolEnd: (payload) => {
+          const result = payload.result as
+            | {
+                sql?: string;
+                results?: Array<{ url?: string }>;
+              }
+            | undefined;
+          const finished: ToolMeta = {
+            name: payload.tool,
+            status: payload.status,
+          };
+          if (payload.tool === "query_database" && result?.sql) {
+            finished.sql = result.sql;
+          }
+          if (payload.tool === "web_search" && result?.results) {
+            finished.web_urls = result.results
+              .map((item) => item.url)
+              .filter((url): url is string => Boolean(url));
+          }
+          tools = tools.map((tool) =>
+            tool.name === payload.tool && tool.status === "running"
+              ? finished
+              : tool,
+          );
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources, tools }),
+          );
         },
         onToken: (token) => {
           assistantText += token;
-          flushSync(() => updateLastAssistant(assistantText, sources));
+          flushSync(() =>
+            updateLastAssistant(assistantText, { sources, tools }),
+          );
         },
         onDone: async () => {
           await loadMessages();

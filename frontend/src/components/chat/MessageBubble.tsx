@@ -1,14 +1,19 @@
-import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
+import { SqlAttribution } from "@/components/chat/SqlAttribution";
 import {
   SourceCitations,
   type SourceCitation,
 } from "@/components/chat/SourceCitations";
+import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
+import { ToolActivity } from "@/components/chat/ToolActivity";
+import { WebSourceCitations } from "@/components/chat/WebSourceCitations";
+import type { ToolMeta } from "@/hooks/useMessages";
 import { cn } from "@/lib/utils";
 
 type MessageBubbleProps = {
   role: "user" | "assistant" | "system";
   content: string;
   sources?: SourceCitation[];
+  tools?: ToolMeta[];
   isThinking?: boolean;
 };
 
@@ -16,6 +21,7 @@ export function MessageBubble({
   role,
   content,
   sources,
+  tools,
   isThinking,
 }: MessageBubbleProps) {
   const isUser = role === "user";
@@ -37,8 +43,12 @@ export function MessageBubble({
     );
   }
 
+  const sqlTool = tools?.find((t) => t.sql);
+  const webUrls = tools?.flatMap((t) => t.web_urls ?? []) ?? [];
+
   return (
     <div className="w-full py-1">
+      {tools && tools.length > 0 && <ToolActivity tools={tools} />}
       <div className="text-[15px] leading-7 text-foreground">
         {showThinking ? (
           <ThinkingIndicator />
@@ -46,6 +56,10 @@ export function MessageBubble({
           <div className="whitespace-pre-wrap">{content}</div>
         )}
       </div>
+      {!showThinking && sqlTool?.sql && <SqlAttribution sql={sqlTool.sql} />}
+      {!showThinking && webUrls.length > 0 && (
+        <WebSourceCitations urls={webUrls} />
+      )}
       {!showThinking && sources && sources.length > 0 && (
         <SourceCitations sources={sources} />
       )}
