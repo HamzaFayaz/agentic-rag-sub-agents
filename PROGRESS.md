@@ -199,3 +199,29 @@ One new main-agent tool: `analyze_document`. The sub-agent has isolated context,
 - [ ] `SUB_AGENT_ENABLED=false` → tool omitted; chat still works
 
 Plan: [.agent/plans/7.module-8-sub-agents.md](.agent/plans/7.module-8-sub-agents.md)
+
+---
+
+## Phase 9 — Optimization, Memory & Security — **not started**
+
+**Next phase for this project.** Work begins with **optimization** (profile hot paths, reduce latency/token cost), then **memory** (token-budget history + rolling thread summaries), then **security** (rate limits, upload hardening, RLS/SQL audit, prompt-injection guardrails).
+
+**Execution order:** Optimization → Memory + Security (parallel after optimization gate).
+
+**Branch:** `phase-9-optimization-memory-security` (from `main`)
+
+| Track | Focus |
+|-------|--------|
+| **O — Optimization** | Baseline benchmarks, embedding batching, ingest short-circuit, retrieval tuning, agent loop compaction, DB indexes |
+| **M — Memory** | Thread summary schema, token-budget history window, rolling summary, UI indicator |
+| **S — Security** | Rate limiting, upload validation, SQL/RLS tests, prompt-injection guardrails, security headers |
+
+### Checklist
+
+- [ ] P0 — Baseline benchmark script + Phase 9 config flags
+- [ ] Track O — Optimization (complete before M/S)
+- [ ] Track M — Memory
+- [ ] Track S — Security
+- [ ] Track E — Integration tests, docs, v6 release notes
+
+Plan: [.agent/plans/8.optimization-memory-security.md](.agent/plans/8.optimization-memory-security.md)
