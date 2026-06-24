@@ -40,12 +40,18 @@ function stepTitle(tool: ToolMeta): string {
 
   if (tool.name === "analyze_document") {
     if (tool.status === "running") {
-      return file ? `Reading ${file}` : "Reading document";
+      return file
+        ? `Calling sub-agent to read and analyze ${file}`
+        : "Calling sub-agent to read and analyze document";
     }
     if (tool.status === "error") {
-      return file ? `Couldn't read ${file}` : "Document read failed";
+      return file
+        ? `Sub-agent couldn't analyze ${file}`
+        : "Sub-agent analysis failed";
     }
-    return file ? `Read ${file}` : "Document read";
+    return file
+      ? `Sub-agent analyzed ${file}`
+      : "Sub-agent finished analysis";
   }
 
   if (tool.name === "search_documents") {
@@ -78,7 +84,7 @@ function stepDetail(tool: ToolMeta): string | null {
     tool.progress_total != null &&
     tool.progress_total > 1
   ) {
-    return `Section ${tool.progress_pass} of ${tool.progress_total}`;
+    return `Pass ${tool.progress_pass} of ${tool.progress_total}`;
   }
 
   if (tool.status === "ok" && tool.mode) {
